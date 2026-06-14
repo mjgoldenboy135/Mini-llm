@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TinyLM — Baby GPT from Scratch</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --surface: #0e1318;
+    --surface2: #141b22;
+    --border: #1e2d3d;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --accent3: #39ff14;
+    --text: #c8d8e8;
+    --muted: #4a6278;
+    --danger: #ff4757;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease;
+  }
+
+  .header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 6vw, 3.5rem);
+    font-weight: 800;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .header .sub {
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .badge-row {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 20px;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .card:nth-child(1) { animation-delay: 0.1s; }
+  .card:nth-child(2) { animation-delay: 0.2s; }
+  .card:nth-child(3) { animation-delay: 0.3s; }
+  .card:nth-child(4) { animation-delay: 0.4s; }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card-title::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* Textarea */
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    padding: 14px;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  textarea:focus { border-color: var(--accent); }
+
+  /* Config grid */
+  .config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .config-item label {
+    display: block;
+    font-size: 0.65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .config-item input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .config-item .val {
+    font-size: 0.8rem;
+    color: var(--accent2);
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  /* Buttons */
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 5px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,229,255,0.25);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 0 30px rgba(0,229,255,0.5);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255,107,53,0.1);
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  /* Progress bar */
+  .progress-wrap {
+    background: var(--surface2);
+    border-radius: 4px;
+    height: 6px;
+    margin: 16px 0 8px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.1s;
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .stat-label {
+    font-size: 0.6rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent3);
+    font-family: 'Syne', sans-serif;
+  }
+
+  /* Loss chart */
+  #lossCanvas {
+    width: 100%;
+    height: 120px;
+    background: var(--surface2);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    margin-top: 14px;
+    display: block;
+  }
+
+  /* Output */
+  .output-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    min-height: 80px;
+    color: var(--accent3);
+    letter-spacing: 0.5px;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  .output-box.empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .prompt-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .prompt-row input {
+    flex: 1;
+    min-width: 120px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .prompt-row input:focus { border-color: var(--accent2); }
+
+  /* Vocab display */
+  .vocab-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 80px;
+    overflow-y: auto;
+    margin-top: 10px;
+  }
+
+  .chip {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 7px;
+    font-size: 0.65rem;
+    color: var(--muted);
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .pulse {
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Explainer */
+  .explainer {
+    background: rgba(0,229,255,0.04);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+    font-size: 0.72rem;
+    line-height: 1.7;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .explainer strong { color: var(--text); }
+
+  /* Status line */
+  #status {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 8px;
+    min-height: 18px;
+    letter-spacing: 1px;
+  }
+
+  #status.active { color: var(--accent); }
+  #status.done { color: var(--accent3); }
+  #status.err { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>TinyLM</h1>
+    <p class="sub">Character-Level Language Model — Built from Scratch</p>
+    <div class="badge-row">
+      <span class="badge">Bigram + Trigram</span>
+      <span class="badge">N-gram Neural Net</span>
+      <span class="badge">100% Vanilla JS</span>
+      <span class="badge">No Libraries</span>
+    </div>
+  </div>
+
+  <!-- Step 1: Training Data -->
+  <div class="card">
+    <div class="card-title">01 — Training Data</div>
+    <div class="explainer">
+      <strong>How it works:</strong> The model reads your text character-by-character and learns which characters tend to follow others. This is exactly how early language models worked — predicting the next token from context.
+    </div>
+    <textarea id="trainText" rows="8" placeholder="Paste any text here to train on...">To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles
+And by opposing end them. To die—to sleep,
+No more; and by a sleep to say we end
+The heart-ache and the thousand natural shocks
+That flesh is heir to: 'tis a consummation
+Devoutly to be wish'd. To die, to sleep;
+To sleep, perchance to dream.</textarea>
+    <div style="margin-top:10px; font-size:0.68rem; color:var(--muted);">
+      <span id="charCount">0</span> characters · <span id="vocabCount">0</span> unique chars
+    </div>
+    <div class="vocab-chips" id="vocabChips"></div>
+  </div>
+
+  <!-- Step 2: Model Config -->
+  <div class="card">
+    <div class="card-title">02 — Model Configuration</div>
+    <div class="config-grid">
+      <div class="config-item">
+        <label>Context Size (n-gram)</label>
+        <input type="range" id="ctxSize" min="2" max="6" value="4" step="1">
+        <div class="val" id="ctxVal">4</div>
+      </div>
+      <div class="config-item">
+        <label>Training Epochs</label>
+        <input type="range" id="epochs" min="1" max="10" value="5" step="1">
+        <div class="val" id="epochsVal">5</div>
+      </div>
+      <div class="config-item">
+        <label>Temperature</label>
+        <input type="range" id="temp" min="1" max="20" value="8" step="1">
+        <div class="val" id="tempVal">0.8</div>
+      </div>
+      <div class="config-item">
+        <label>Smoothing</label>
+        <input type="range" id="smooth" min="1" max="20" value="5" step="1">
+        <div class="val" id="smoothVal">0.5</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="trainBtn" onclick="startTraining()">▶ Train Model</button>
+      <button class="btn btn-secondary" id="resetBtn" onclick="resetModel()">Reset</button>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div id="status">— awaiting training —</div>
+
+    <div class="stats-row" id="statsRow" style="display:none">
+      <div class="stat">
+        <span class="stat-label">Perplexity</span>
+        <span class="stat-value" id="statPpl">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Vocab Size</span>
+        <span class="stat-value" id="statVocab">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">N-grams Learned</span>
+        <span class="stat-value" id="statNgrams">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Train Loss</span>
+        <span class="stat-value" id="statLoss">—</span>
+      </div>
+    </div>
+
+    <canvas id="lossCanvas" style="display:none"></canvas>
+  </div>
+
+  <!-- Step 3: Generate -->
+  <div class="card">
+    <div class="card-title">03 — Generate Text</div>
+    <div class="explainer">
+      The model samples the next character using learned probabilities. <strong>Temperature</strong> controls creativity — lower = more predictable, higher = more wild. Try different seed prompts!
+    </div>
+    <div class="prompt-row">
+      <input type="text" id="seedInput" placeholder="Seed prompt (e.g. 'To')" value="To">
+      <input type="number" id="genLen" value="200" min="20" max="1000" style="width:90px" title="Characters to generate">
+      <button class="btn btn-primary" id="genBtn" onclick="generateText()" disabled>Generate</button>
+    </div>
+    <div class="output-box empty" id="outputBox">Train the model first, then generate text here...</div>
+  </div>
+
+  <!-- Step 4: How it works -->
+  <div class="card">
+    <div class="card-title">04 — Under the Hood</div>
+    <div class="explainer" style="margin-bottom:10px">
+      <strong>Architecture:</strong> This is an N-gram language model — the simplest form of a language model, predating deep learning. It's the conceptual ancestor of GPT.
+    </div>
+    <div style="font-size:0.7rem; line-height:2; color:var(--muted)">
+      <span style="color:var(--accent)">1.</span> <strong style="color:var(--text)">Tokenization</strong> — Split text into individual characters (vocab)<br>
+      <span style="color:var(--accent)">2.</span> <strong style="color:var(--text)">N-gram counting</strong> — Count how often each sequence of N chars appears<br>
+      <span style="color:var(--accent)">3.</span> <strong style="color:var(--text)">Probability estimation</strong> — P(next_char | context) = count(context+char) / count(context)<br>
+      <span style="color:var(--accent)">4.</span> <strong style="color:var(--text)">Laplace smoothing</strong> — Add small count to unseen pairs to avoid zero probability<br>
+      <span style="color:var(--accent)">5.</span> <strong style="color:var(--text)">Temperature sampling</strong> — Divide log-probs by T, softmax, then sample<br>
+      <span style="color:var(--accent)">6.</span> <strong style="color:var(--text)">Perplexity</strong> — exp(avg negative log likelihood) — lower = better model fit
+    </div>
+    <div style="margin-top:14px; font-size:0.65rem; color:var(--border); letter-spacing:1px; text-align:right">
+      TINYLM v1.0 · PURE VANILLA JS · NO DEPENDENCIES
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Model State ───────────────────────────────────────────────────────────
+let model = null;
+let lossHistory = [];
+
+// ─── Live char count ────────────────────────────────────────────────────────
+const trainText = document.getElementById('trainText');
+trainText.addEventListener('input', updateCharCount);
+updateCharCount();
+
+function updateCharCount() {
+  const txt = trainText.value;
+  const chars = [...new Set(txt.split(''))].sort();
+  document.getElementById('charCount').textContent = txt.length.toLocaleString();
+  document.getElementById('vocabCount').textContent = chars.length;
+  const chips = document.getElementById('vocabChips');
+  chips.innerHTML = chars.slice(0, 60).map(c =>
+    `<span class="chip">${c === ' ' ? '·' : c === '\n' ? '↵' : c}</span>`
+  ).join('');
+}
+
+// ─── Slider display ─────────────────────────────────────────────────────────
+['ctxSize','epochs','temp','smooth'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => updateSliders());
+});
+updateSliders();
+
+function updateSliders() {
+  document.getElementById('ctxVal').textContent = document.getElementById('ctxSize').value;
+  document.getElementById('epochsVal').textContent = document.getElementById('epochs').value;
+  document.getElementById('tempVal').textContent = (parseInt(document.getElementById('temp').value) / 10).toFixed(1);
+  document.getElementById('smoothVal').textContent = (parseInt(document.getElementById('smooth').value) / 10).toFixed(1);
+}
+
+// ─── Core N-gram Model ───────────────────────────────────────────────────────
+class NgramLM {
+  constructor(n, smoothing) {
+    this.n = n;
+    this.smoothing = smoothing;
+    this.counts = {};       // context → { nextChar: count }
+    this.vocab = [];
+    this.charToIdx = {};
+  }
+
+  train(text) {
+    // Build vocab
+    this.vocab = [...new Set(text.split(''))].sort();
+    this.vocab.forEach((c, i) => this.charToIdx[c] = i);
+
+    // Count n-grams
+    for (let i = 0; i < text.length - this.n; i++) {
+      const ctx = text.slice(i, i + this.n - 1);
+      const next = text[i + this.n - 1];
+      if (!this.counts[ctx]) this.counts[ctx] = {};
+      this.counts[ctx][next] = (this.counts[ctx][next] || 0) + 1;
+    }
+    return this;
+  }
+
+  // Compute smoothed log probability of char given context
+  logProb(ctx, char) {
+    const dist = this.counts[ctx] || {};
+    const num = (dist[char] || 0) + this.smoothing;
+    const denom = Object.values(dist).reduce((a, b) => a + b, 0)
+                  + this.smoothing * this.vocab.length;
+    return Math.log(num / denom);
+  }
+
+  // Compute perplexity on training text
+  perplexity(text) {
+    let logSum = 0, count = 0;
+    for (let i = this.n - 1; i < text.length; i++) {
+      const ctx = text.slice(i - (this.n - 1), i);
+      const char = text[i];
+      logSum += this.logProb(ctx, char);
+      count++;
+    }
+    return Math.exp(-logSum / count);
+  }
+
+  // Sample next character with temperature
+  sample(ctx, temperature) {
+    const dist = this.counts[ctx] || {};
+    const logits = this.vocab.map(c => {
+      const cnt = (dist[c] || 0) + this.smoothing;
+      const total = Object.values(dist).reduce((a, b) => a + b, 0)
+                    + this.smoothing * this.vocab.length;
+      return Math.log(cnt / total) / temperature;
+    });
+
+    // Softmax
+    const maxL = Math.max(...logits);
+    const exps = logits.map(l => Math.exp(l - maxL));
+    const sum = exps.reduce((a, b) => a + b, 0);
+    const probs = exps.map(e => e / sum);
+
+    // Sample
+    let r = Math.random(), cumul = 0;
+    for (let i = 0; i < this.vocab.length; i++) {
+      cumul += probs[i];
+      if (r <= cumul) return this.vocab[i];
+    }
+    return this.vocab[this.vocab.length - 1];
+  }
+
+  generate(seed, length, temperature) {
+    let result = seed;
+    const n1 = this.n - 1;
+    for (let i = 0; i < length; i++) {
+      const ctx = result.slice(-n1).padStart(n1, result[0] || ' ');
+      result += this.sample(ctx, temperature);
+    }
+    return result;
+  }
+
+  get ngramCount() {
+    return Object.values(this.counts).reduce((a, b) => a + Object.keys(b).length, 0);
+  }
+}
+
+// ─── Training ────────────────────────────────────────────────────────────────
+async function startTraining() {
+  const text = document.getElementById('trainText').value.trim();
+  if (text.length < 50) {
+    setStatus('Need at least 50 characters of training text!', 'err');
+    return;
+  }
+
+  const n        = parseInt(document.getElementById('ctxSize').value);
+  const epochs   = parseInt(document.getElementById('epochs').value);
+  const smoothing = parseInt(document.getElementById('smooth').value) / 10;
+
+  document.getElementById('trainBtn').disabled = true;
+  document.getElementById('genBtn').disabled = true;
+  lossHistory = [];
+
+  const statusEl = document.getElementById('status');
+  const bar = document.getElementById('progressBar');
+  const statsRow = document.getElementById('statsRow');
+  const lossCanvas = document.getElementById('lossCanvas');
+
+  setStatus('Building vocabulary...', 'active');
+  await sleep(30);
+
+  model = new NgramLM(n, smoothing);
+
+  for (let e = 1; e <= epochs; e++) {
+    setStatus(`Training epoch ${e}/${epochs}...`, 'active');
+    bar.style.width = ((e / epochs) * 100) + '%';
+    await sleep(40);
+
+    // Slightly shuffle-augment per epoch by training on varied offsets
+    const offset = Math.floor(Math.random() * Math.min(10, text.length));
+    model.train(text.slice(offset));
+    model.train(text); // always train on full text too
+
+    const ppl = model.perplexity(text);
+    const loss = Math.log(ppl);
+    lossHistory.push({ epoch: e, loss: parseFloat(loss.toFixed(4)), ppl: parseFloat(ppl.toFixed(2)) });
+    drawLossChart();
+    await sleep(50);
+  }
+
+  const finalPpl = model.perplexity(text);
+  const finalLoss = Math.log(finalPpl);
+
+  document.getElementById('statPpl').textContent = finalPpl.toFixed(1);
+  document.getElementById('statVocab').textContent = model.vocab.length;
+  document.getElementById('statNgrams').textContent = model.ngramCount.toLocaleString();
+  document.getElementById('statLoss').textContent = finalLoss.toFixed(3);
+
+  statsRow.style.display = 'flex';
+  lossCanvas.style.display = 'block';
+  drawLossChart();
+
+  document.getElementById('trainBtn').disabled = false;
+  document.getElementById('genBtn').disabled = false;
+  setStatus(`✓ Training complete! ${model.ngramCount.toLocaleString()} n-grams learned.`, 'done');
+}
+
+// ─── Generate ────────────────────────────────────────────────────────────────
+function generateText() {
+  if (!model) return;
+
+  const seed    = document.getElementById('seedInput').value || model.vocab[0];
+  const length  = parseInt(document.getElementById('genLen').value) || 200;
+  const temp    = parseInt(document.getElementById('temp').value) / 10;
+  const output  = document.getElementById('outputBox');
+
+  output.classList.remove('empty');
+  output.textContent = '▌';
+
+  // Animate character by character
+  const result = model.generate(seed, length, temp);
+  let i = 0;
+
+  const interval = setInterval(() => {
+    if (i >= result.length) {
+      clearInterval(interval);
+      output.textContent = result;
+      return;
+    }
+    output.textContent = result.slice(0, i + 1) + '▌';
+    i += Math.ceil(length / 80); // speed proportional to length
+  }, 20);
+}
+
+// ─── Reset ───────────────────────────────────────────────────────────────────
+function resetModel() {
+  model = null;
+  lossHistory = [];
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('statsRow').style.display = 'none';
+  document.getElementById('lossCanvas').style.display = 'none';
+  document.getElementById('genBtn').disabled = true;
+  document.getElementById('outputBox').textContent = 'Train the model first, then generate text here...';
+  document.getElementById('outputBox').classList.add('empty');
+  setStatus('— model reset —', '');
+}
+
+// ─── Loss Chart ───────────────────────────────────────────────────────────────
+function drawLossChart() {
+  const canvas = document.getElementById('lossCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth, H = 120;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = H * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (lossHistory.length < 2) return;
+
+  const losses = lossHistory.map(d => d.loss);
+  const minL = Math.min(...losses) - 0.1;
+  const maxL = Math.max(...losses) + 0.1;
+  const pad = { t: 12, r: 16, b: 24, l: 40 };
+  const gW = W - pad.l - pad.r;
+  const gH = H - pad.t - pad.b;
+
+  const xScale = i => pad.l + (i / (lossHistory.length - 1)) * gW;
+  const yScale = v => pad.t + (1 - (v - minL) / (maxL - minL)) * gH;
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(30,45,61,0.8)';
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75, 1].forEach(t => {
+    const y = pad.t + t * gH;
+    ctx.beginPath();
+    ctx.moveTo(pad.l, y);
+    ctx.lineTo(W - pad.r, y);
+    ctx.stroke();
+  });
+
+  // Axes labels
+  ctx.fillStyle = '#4a6278';
+  ctx.font = '9px JetBrains Mono';
+  ctx.fillText('Loss', 2, pad.t + 4);
+  lossHistory.forEach((d, i) => {
+    if (i === 0 || i === lossHistory.length - 1) {
+      ctx.fillText(`E${d.epoch}`, xScale(i) - 6, H - 6);
+    }
+  });
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
+  grad.addColorStop(0, 'rgba(0,229,255,0.3)');
+  grad.addColorStop(1, 'rgba(0,229,255,0)');
+
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(losses[0]));
+  losses.forEach((v, i) => i > 0 && ctx.lineTo(xScale(i), yScale(v)));
+  ctx.lineTo(xScale(losses.length - 1), H - pad.b);
+  ctx.lineTo(xScale(0), H - pad.b);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(losses[0]));
+  losses.forEach((v, i) => i > 0 && ctx.lineTo(xScale(i), yScale(v)));
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 6;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Dots
+  losses.forEach((v, i) => {
+    ctx.beginPath();
+    ctx.arc(xScale(i), yScale(v), 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = i === losses.length - 1 ? '#ff6b35' : '#00e5ff';
+    ctx.fill();
+  });
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type;
+}
+
+// Init
+updateSliders();
+</script>
+</body>
+</html>
