@@ -153,7 +153,7 @@ textarea:focus{border-color:var(--ac)}
     <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp first 8% of steps; cosine anneal 3e−3 → 5e−5.<br>
     <span style="color:var(--ac)">10.</span> <strong style="color:var(--tx)">Nucleus Sampling</strong> — Top-p keeps the minimal token set covering probability mass p.
   </div>
-  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.0 · TRANSFORMER · PURE VANILLA JS · NO LIBRARIES</div>
+  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.1 · TRANSFORMER · PURE VANILLA JS · NO LIBRARIES</div>
 </div>
 
 </div>
@@ -204,13 +204,12 @@ function attnFwd(Q,K,V,S,D,nh,hd){
   const concat=new Float32Array(S*D),allA=[];
   for(let h=0;h<nh;h++){
     const off=h*hd;
-    // Extract head slices
     const Qh=new Float32Array(S*hd),Kh=new Float32Array(S*hd),Vh=new Float32Array(S*hd);
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++){Qh[s*hd+d]=Q[s*D+off+d];Kh[s*hd+d]=K[s*D+off+d];Vh[s*hd+d]=V[s*D+off+d];}
     // Scores [S,S] causal
     const sc2=new Float32Array(S*S);
     for(let i=0;i<S;i++)for(let j=0;j<=i;j++){let t=0;for(let d=0;d<hd;d++)t+=Qh[i*hd+d]*Kh[j*hd+d];sc2[i*S+j]=t*sc;}
-    // Softmax rows
+    // Softmax rows (causal mask: j>i treated as -inf via being zero-initialized)
     const at=new Float32Array(S*S);
     for(let i=0;i<S;i++){
       let mx=-1e9;for(let j=0;j<=i;j++)if(sc2[i*S+j]>mx)mx=sc2[i*S+j];
@@ -236,13 +235,13 @@ function attnBwd(dConcat,Q,K,V,allA,Wq,Wk,Wv,A_in,S,D,nh,hd){
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++){Qh[s*hd+d]=Q[s*D+off+d];Kh[s*hd+d]=K[s*D+off+d];Vh[s*hd+d]=V[s*D+off+d];}
     const dOh=new Float32Array(S*hd);
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++)dOh[s*hd+d]=dConcat[s*D+off+d];
-    // dV
+    // dV: dV[j,d] = sum_{i>=j} at[i,j] * dOh[i,d]
     const dVh=new Float32Array(S*hd);
     for(let j=0;j<S;j++)for(let d=0;d<hd;d++){let t=0;for(let i=j;i<S;i++)t+=at[i*S+j]*dOh[i*hd+d];dVh[j*hd+d]=t;}
     // dAttn
     const dAt=new Float32Array(S*S);
     for(let i=0;i<S;i++)for(let j=0;j<=i;j++){let t=0;for(let d=0;d<hd;d++)t+=dOh[i*hd+d]*Vh[j*hd+d];dAt[i*S+j]=t;}
-    // Softmax bwd
+    // Softmax backward
     const dSc=new Float32Array(S*S);
     for(let i=0;i<S;i++){let dot=0;for(let j=0;j<=i;j++)dot+=at[i*S+j]*dAt[i*S+j];for(let j=0;j<=i;j++)dSc[i*S+j]=at[i*S+j]*(dAt[i*S+j]-dot)*sc;}
     // dQh, dKh
@@ -251,9 +250,11 @@ function attnBwd(dConcat,Q,K,V,allA,Wq,Wk,Wv,A_in,S,D,nh,hd){
     for(let j=0;j<S;j++)for(let d=0;d<hd;d++){let t=0;for(let i=j;i<S;i++)t+=dSc[i*S+j]*Qh[i*hd+d];dKh[j*hd+d]=t;}
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++){dQ[s*D+off+d]+=dQh[s*hd+d];dK[s*D+off+d]+=dKh[s*hd+d];dV[s*D+off+d]+=dVh[s*hd+d];}
   }
-  // dA_in = dQ@Wq.T + dK@Wk.T + dV@Wv.T
+  // dA_in = dQ @ Wq.T + dK @ Wk.T + dV @ Wv.T
+  // dA[s,i] = sum_j dQ[s,j]*Wq[i,j] + ... (Wq stored as [D,D] = [in,out])
   const dA=new Float32Array(S*D);
   for(let s=0;s<S;s++)for(let i=0;i<D;i++){let t=0;for(let j=0;j<D;j++)t+=dQ[s*D+j]*Wq[i*D+j]+dK[s*D+j]*Wk[i*D+j]+dV[s*D+j]*Wv[i*D+j];dA[s*D+i]=t;}
+  // dWq = A_in.T @ dQ, etc.
   const dWq=mmT1(A_in,dQ,S,D,D),dbq=new Float32Array(D);
   const dWk=mmT1(A_in,dK,S,D,D),dbk=new Float32Array(D);
   const dWv=mmT1(A_in,dV,S,D,D),dbv=new Float32Array(D);
@@ -273,7 +274,6 @@ class TransformerLM{
       if(n&1)a[n-1]=Math.sqrt(-2*Math.log(Math.random()+1e-12))*sc;
       return a;
     };
-    // Param registry: {p, m, v}
     this._ps=[];
     const reg=(p)=>{const e={p,m:new Float32Array(p.length),v:new Float32Array(p.length)};this._ps.push(e);return e;};
     this.tokE=reg(r(V*D,0.02)).p;
@@ -301,45 +301,48 @@ class TransformerLM{
   // Forward pass: tokens[S] -> logits[S,V] + cache
   forward(tokens){
     const{V,S,D,nh,hd,nL,F}=this;
-    // 1. Embed
+    // 1. Embed: X[s,d] = tokE[token[s],d] + posE[s,d]
     let X=new Float32Array(S*D);
     for(let s=0;s<S;s++){const te=tokens[s]*D,pe=s*D;for(let d=0;d<D;d++)X[s*D+d]=this.tokE[te+d]+this.posE[pe+d];}
     const cache={X0:X,layers:[]};
     // 2. Transformer layers
     for(let l=0;l<nL;l++){
       const ly=this.layers[l],lc={};
-      // Attention block
+      // --- Attention sub-block ---
       lc.xA=X;
       const{Y:A,xn:axn,rs:ars}=lnFwd(X,ly.ln1g,ly.ln1b,S,D);
       lc.axn=axn;lc.ars=ars;
+      // Q,K,V = A @ W + b
       const Q=new Float32Array(S*D),K=new Float32Array(S*D),Vp=new Float32Array(S*D);
       for(let s=0;s<S;s++)for(let d=0;d<D;d++){Q[s*D+d]=ly.bq[d];K[s*D+d]=ly.bk[d];Vp[s*D+d]=ly.bv[d];}
-      // Q,K,V = A @ W + b
       for(let s=0;s<S;s++)for(let i=0;i<D;i++){const a=A[s*D+i];for(let j=0;j<D;j++){Q[s*D+j]+=a*ly.Wq[i*D+j];K[s*D+j]+=a*ly.Wk[i*D+j];Vp[s*D+j]+=a*ly.Wv[i*D+j];}}
       lc.A=A;lc.Q=Q;lc.K=K;lc.V=Vp;
       const{concat,allA}=attnFwd(Q,K,Vp,S,D,nh,hd);
       lc.concat=concat;lc.allA=allA;
-      // Output projection + residual
+      // Output projection + residual: X2 = X + concat @ Wo + bo
       const aout=new Float32Array(S*D);
       for(let s=0;s<S;s++)for(let d=0;d<D;d++)aout[s*D+d]=ly.bo[d];
       for(let s=0;s<S;s++)for(let i=0;i<D;i++){const c=concat[s*D+i];for(let j=0;j<D;j++)aout[s*D+j]+=c*ly.Wo[i*D+j];}
       lc.aout=aout;
       const X2=new Float32Array(S*D);for(let i=0;i<S*D;i++)X2[i]=X[i]+aout[i];
-      // FFN block
+      // --- FFN sub-block ---
       lc.xF=X2;
       const{Y:Bf,xn:fxn,rs:frs}=lnFwd(X2,ly.ln2g,ly.ln2b,S,D);
       lc.fxn=fxn;lc.frs=frs;lc.Bf=Bf;
-      // h = Bf @ Wf1 + bf1, relu, @ Wf2 + bf2
+      // pre = Bf @ Wf1 + bf1  [S,F]
       const pre=new Float32Array(S*F);
       for(let s=0;s<S;s++)for(let f=0;f<F;f++)pre[s*F+f]=ly.bf1[f];
       for(let s=0;s<S;s++)for(let d=0;d<D;d++){const b=Bf[s*D+d];for(let f=0;f<F;f++)pre[s*F+f]+=b*ly.Wf1[d*F+f];}
       lc.pre=pre;
+      // h = relu(pre)  [S,F]
       const h=new Float32Array(S*F);for(let i=0;i<S*F;i++)h[i]=pre[i]>0?pre[i]:0;
       lc.h=h;
+      // ffout = h @ Wf2 + bf2  [S,D]
       const ffout=new Float32Array(S*D);
       for(let s=0;s<S;s++)for(let d=0;d<D;d++)ffout[s*D+d]=ly.bf2[d];
       for(let s=0;s<S;s++)for(let f=0;f<F;f++){const hv=h[s*F+f];for(let d=0;d<D;d++)ffout[s*D+d]+=hv*ly.Wf2[f*D+d];}
       lc.ffout=ffout;
+      // Residual: X = X2 + ffout
       X=new Float32Array(S*D);for(let i=0;i<S*D;i++)X[i]=X2[i]+ffout[i];
       cache.layers.push(lc);
     }
@@ -353,7 +356,7 @@ class TransformerLM{
     return cache;
   }
 
-  // Compute loss + dLogits given targets[S]
+  // Compute cross-entropy loss + gradient given targets[S]
   ceLoss(logits,targets){
     const{V,S}=this;
     let loss=0;
@@ -370,79 +373,74 @@ class TransformerLM{
     return{loss:loss/S,dL};
   }
 
-  // Full backward pass
+  // Full backward pass — returns gradients for all parameters
   backward(cache,dL){
     const{V,S,D,nh,hd,nL,F}=this;
-    const grads=new Array(this._ps.length).fill(null).map((_,i)=>new Float32Array(this._ps[i].p.length));
-    const gi=i=>grads[i];
-    let pi=0; // param index counter matching registration order
-    // We'll accumulate grads by index; need to track param order
-    // Easier: store grad arrays alongside params
-    // Re-map by walking the same registration order
-    const pg=this._ps.map(e=>new Float32Array(e.p.length));
 
     // 4. dXf = dL @ Wout  [S,D]
     const dXf=new Float32Array(S*D);
     for(let s=0;s<S;s++)for(let d=0;d<D;d++){let t=0;for(let v=0;v<V;v++)t+=dL[s*V+v]*this.Wout[v*D+d];dXf[s*D+d]=t;}
     // dWout [V,D] = dL.T @ Xf
     const dWout=mmT1(dL,cache.Xf,S,V,D);
-    // 3. lnBwd final
+
+    // 3. Final LayerNorm backward
     const{dX:dXpre,dg:dlnfg,db:dlnfb}=lnBwd(dXf,cache.fxn,cache.frs,this.lnfg,S,D);
     let dX=dXpre;
-    // 2. Layers in reverse
+
+    // 2. Transformer layers in reverse
     for(let l=nL-1;l>=0;l--){
       const ly=this.layers[l],lc=cache.layers[l];
-      // FFN residual: X = X2 + ffout  =>  dX2 = dX, dffout = dX
+
+      // FFN residual: X = X2 + ffout  =>  dX2 += dX, dffout = dX
       const dffout=new Float32Array(dX);
       const dX2=new Float32Array(dX);
+
       // FFN backward
-      const dh=mmT2(dffout,ly.Wf2,S,D,F); // [S,F]
+      // dh = dffout @ Wf2.T   Wf2:[F,D]  =>  dh[S,F]
+      const dh=mmT2(dffout,ly.Wf2,S,D,F);
+      // dWf2 = h.T @ dffout   [F,D]
       const dWf2=mmT1(lc.h,dffout,S,F,D);
       const dbf2=new Float32Array(D);for(let s=0;s<S;s++)for(let d=0;d<D;d++)dbf2[d]+=dffout[s*D+d];
-      // ReLU bwd
+      // ReLU backward: dpre[s,f] = dh[s,f] if pre[s,f]>0
       const dpre=new Float32Array(S*F);for(let i=0;i<S*F;i++)dpre[i]=lc.pre[i]>0?dh[i]:0;
-      const dBf=mm(dpre,ly.Wf2,S,F,D); // wait: dpre[S,F] @ Wf2[F,D] => [S,D] -- but we need Wf2.T
-      // Actually dBf = dpre @ Wf2.T where Wf2 is [F,D]
-      // = mmT2(dpre, Wf2, S, F, F) -- wrong
-      // dBf[s,d] = sum_f dpre[s,f] * Wf2[f,d]  -> mm(dpre, Wf2, S, F, D)
-      const dBf2=mm(dpre,ly.Wf2,S,F,D);
+      // dBf = dpre @ Wf1.T   Wf1:[D,F]  =>  mmT2(dpre, Wf1, S, F, D) = [S,D]
+      const dBf=mmT2(dpre,ly.Wf1,S,F,D);
+      // dWf1 = Bf.T @ dpre   [D,F]
       const dWf1=mmT1(lc.Bf,dpre,S,D,F);
       const dbf1=new Float32Array(F);for(let s=0;s<S;s++)for(let f=0;f<F;f++)dbf1[f]+=dpre[s*F+f];
-      // LN2 bwd
-      const{dX:dX2ln,dg:dln2g,db:dln2b}=lnBwd(dBf2,lc.fxn,lc.frs,ly.ln2g,S,D);
-      // combine residual
+
+      // LN2 backward
+      const{dX:dX2ln,dg:dln2g,db:dln2b}=lnBwd(dBf,lc.fxn,lc.frs,ly.ln2g,S,D);
       for(let i=0;i<S*D;i++)dX2[i]+=dX2ln[i];
-      // Attn block: X2 = xA + aout  =>  dxA = dX2, daout = dX2
+
+      // Attention residual: X2 = xA + aout  =>  dxA += dX2, daout = dX2
       const daout=new Float32Array(dX2);
       const dxA=new Float32Array(dX2);
-      // aout = concat @ Wo + bo  =>  dconcat = daout @ Wo.T, dWo = concat.T @ daout
-      // daout[s,d] -> dconcat[s,i] = sum_d daout[s,d]*Wo[i,d]
+
+      // Output projection backward: aout = concat @ Wo + bo
+      // dconcat = daout @ Wo.T   Wo:[D,D]  =>  mmT2(daout, Wo, S, D, D) = [S,D]
       const dconcat=mmT2(daout,ly.Wo,S,D,D);
       const dWo=mmT1(lc.concat,daout,S,D,D);
       const dbo=new Float32Array(D);for(let s=0;s<S;s++)for(let d=0;d<D;d++)dbo[d]+=daout[s*D+d];
-      // Attn bwd
+
+      // Attention backward
       const{dA,dWq,dbq,dWk,dbk,dWv,dbv}=attnBwd(dconcat,lc.Q,lc.K,lc.V,lc.allA,ly.Wq,ly.Wk,ly.Wv,lc.A,S,D,nh,hd);
-      // LN1 bwd
+
+      // LN1 backward
       const{dX:dXln1,dg:dln1g,db:dln1b}=lnBwd(dA,lc.axn,lc.ars,ly.ln1g,S,D);
       for(let i=0;i<S*D;i++)dxA[i]+=dXln1[i];
       dX=dxA;
-      // Store layer grads (in reverse param order of registration)
-      // Order per layer: ln1g,ln1b, Wq,bq, Wk,bk, Wv,bv, Wo,bo, ln2g,ln2b, Wf1,bf1, Wf2,bf2
-      // We stored: tokE(0), posE(1), then l=0 layers, l=1 layers, ..., lnfg, lnfb, Wout
-      // Layer l starts at param index 2 + l*16
-      const base=2+l*16;
-      const addG=(idx,src)=>{for(let i=0;i<src.length;i++)pg[idx].p[i]=(pg[idx].p[i]||0);for(let i=0;i<src.length;i++)pg[base+idx][i]+=src[i];};
-      // Simpler: accumulate into named arrays then copy at end
-      // Actually let me just store them in a separate object and apply adam later
+
       lc._grads={dln1g,dln1b,dWq,dbq,dWk,dbk,dWv,dbv,dWo,dbo,dln2g,dln2b,dWf1,dbf1,dWf2,dbf2};
     }
+
     // 1. Embedding backward
     const dtokE=new Float32Array(V*D),dposE=new Float32Array(S*D);
     for(let s=0;s<S;s++)for(let d=0;d<D;d++){dtokE[cache._tokens[s]*D+d]+=dX[s*D+d];dposE[s*D+d]+=dX[s*D+d];}
     return{dtokE,dposE,dlnfg,dlnfb,dWout,layerGrads:cache.layers.map(lc=>lc._grads)};
   }
 
-  // Adam step
+  // Adam update for a single parameter tensor
   _adam(p,g,m,v,lr,bc1,bc2){
     const eps=1e-8;
     for(let i=0;i<p.length;i++){
@@ -451,6 +449,7 @@ class TransformerLM{
     }
   }
 
+  // Single training step: forward + backward + clip + Adam
   step(window,lr){
     const{V,S,D,nL,F}=this;
     const tokens=window.slice(0,S);
@@ -459,18 +458,18 @@ class TransformerLM{
     cache._tokens=tokens;
     const{loss,dL}=this.ceLoss(cache.logits,targets);
     const grads=this.backward(cache,dL);
-    // Global gradient norm
+    // Global gradient norm clipping (max norm = 1.0)
     let gn2=0;
     const allG=[grads.dtokE,grads.dposE,grads.dlnfg,grads.dlnfb,grads.dWout];
     for(const lg of grads.layerGrads)for(const g of Object.values(lg))allG.push(g);
     for(const g of allG)for(let i=0;i<g.length;i++)gn2+=g[i]*g[i];
     const sc=Math.sqrt(gn2)>1?1/Math.sqrt(gn2):1;
     for(const g of allG)for(let i=0;i<g.length;i++)g[i]*=sc;
-    // Adam update
+    // Adam with bias correction
     this.t++;
     const bc1=1-0.9**this.t,bc2=1-0.999**this.t;
     let pi=0;
-    const upd=(p,g)=>{const e=this._ps[pi++];this._adam(e.p,g,e.m,e.v,lr,bc1,bc2);};
+    const upd=(_p,g)=>{const e=this._ps[pi++];this._adam(e.p,g,e.m,e.v,lr,bc1,bc2);};
     upd(this.tokE,grads.dtokE);
     upd(this.posE,grads.dposE);
     for(let l=0;l<nL;l++){
@@ -502,27 +501,27 @@ class TransformerLM{
   }
 
   sample(ctxTokens,temp,topK,topP){
-    const{V,S,D}=this;
-    // Pad or truncate to S tokens
+    const{V,S}=this;
+    // Pad/truncate context to exactly S tokens
     const tok=new Array(S).fill(0);
     const off=Math.max(0,ctxTokens.length-S);
     for(let i=0;i<Math.min(S,ctxTokens.length);i++)tok[S-Math.min(S,ctxTokens.length)+i]=ctxTokens[off+i];
     const cache=this.forward(tok);
-    // Use last position logits
+    // Use last-position logits
     const logits=cache.logits.slice((S-1)*V,S*V);
     // Temperature softmax
     let mx=logits[0];for(let v=1;v<V;v++)if(logits[v]>mx)mx=logits[v];
     const p=new Float32Array(V);let sm=0;
     for(let v=0;v<V;v++){p[v]=Math.exp((logits[v]-mx)/temp);sm+=p[v];}
     for(let v=0;v<V;v++)p[v]/=sm;
-    // Top-k
+    // Top-k filtering
     if(topK>0&&topK<V){
       const idx=Array.from({length:V},(_,i)=>i).sort((a,b)=>p[b]-p[a]);
       const keep=new Set(idx.slice(0,topK));
       let s2=0;for(let v=0;v<V;v++){if(!keep.has(v))p[v]=0;else s2+=p[v];}
       for(let v=0;v<V;v++)p[v]/=s2;
     }
-    // Top-p
+    // Top-p (nucleus) filtering
     if(topP<0.999){
       const idx=Array.from({length:V},(_,i)=>i).filter(i=>p[i]>0).sort((a,b)=>p[b]-p[a]);
       let cum=0,cut=idx.length;
@@ -570,7 +569,7 @@ function generateMathDataset(){
   for(let a=0;a<=20;a++)for(let b=0;b<=20;b++)t+=`Q:${a}+${b}? A:${a+b}\n`;
   // Q&A multiplication
   for(let a=0;a<=12;a++)for(let b=0;b<=12;b++)t+=`Q:${a}*${b}? A:${a*b}\n`;
-  // Some factual Q&A
+  // Factual Q&A (repeated for weight)
   const qa=[
     'Q: capital of France? A: Paris',
     'Q: capital of India? A: New Delhi',
@@ -633,7 +632,7 @@ And lose the name of action.`;
 let model=null,vocab=[],charToIdx={},lossHist=[],trainRunning=false;
 
 // =====================================================================
-// Training
+// Training loop
 // =====================================================================
 async function startTraining(){
   const text=document.getElementById('trainText').value.trim();
@@ -647,8 +646,8 @@ async function startTraining(){
   const nL=parseInt(document.getElementById('nL').value);
   const FDIMS=[64,96,128,192],F=FDIMS[parseInt(document.getElementById('ffnD').value)-1];
   const maxSteps=parseInt(document.getElementById('steps').value)*100;
-  const D=Math.floor(E/nh)*nh; // ensure divisible
-  // Build windows (S+1 each)
+  const D=Math.floor(E/nh)*nh; // ensure D divisible by nh
+  // Build sliding windows of length S+1
   const allW=[];
   for(let i=0;i+S<text.length;i++){
     const w=new Array(S+1);
@@ -665,10 +664,13 @@ async function startTraining(){
   document.getElementById('statsRow').style.display='none';
   document.getElementById('lossC').style.display='none';
   document.getElementById('progBar').style.width='0%';
+  // LR schedule: linear warmup then cosine decay
   const maxLR=3e-3,minLR=5e-5,warmup=Math.max(50,maxSteps*.08|0);
   let ema=null;
   for(let step=0;step<maxSteps&&trainRunning;step++){
-    let lr=step<warmup?maxLR*(step+1)/warmup:minLR+.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(step-warmup)/(maxSteps-warmup)));
+    const lr=step<warmup
+      ?maxLR*(step+1)/warmup
+      :minLR+.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(step-warmup)/(maxSteps-warmup)));
     const w=trainW[Math.floor(Math.random()*trainW.length)];
     const loss=model.step(w,lr);
     ema=ema===null?loss:0.98*ema+0.02*loss;
@@ -714,7 +716,7 @@ function resetModel(){
 }
 
 // =====================================================================
-// Generation
+// Text generation
 // =====================================================================
 function generateText(){
   if(!model)return;
@@ -735,7 +737,7 @@ function generateText(){
 }
 
 // =====================================================================
-// Chart
+// Loss chart
 // =====================================================================
 function drawChart(){
   if(lossHist.length<2)return;
@@ -777,8 +779,7 @@ function loadShakespeare(){document.getElementById('trainText').value=SHAKESPEAR
 
 const trainTxt=document.getElementById('trainText');
 trainTxt.addEventListener('input',updateUI);
-// Load math by default
-loadMathDataset();
+loadMathDataset(); // default dataset on page load
 
 function updateUI(){
   const txt=trainTxt.value;
