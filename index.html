@@ -17,7 +17,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .badge-row{display:flex;justify-content:center;gap:8px;margin-top:14px;flex-wrap:wrap}
 .badge{background:var(--sur2);border:1px solid var(--brd);border-radius:4px;padding:3px 9px;font-size:.62rem;letter-spacing:1px;color:var(--ac);text-transform:uppercase}
 .card{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:24px;margin-bottom:18px;animation:fadeUp .5s ease both}
-.card:nth-child(1){animation-delay:.1s}.card:nth-child(2){animation-delay:.2s}.card:nth-child(3){animation-delay:.3s}.card:nth-child(4){animation-delay:.4s}.card:nth-child(5){animation-delay:.5s}
+.card:nth-child(1){animation-delay:.05s}.card:nth-child(2){animation-delay:.1s}.card:nth-child(3){animation-delay:.15s}.card:nth-child(4){animation-delay:.2s}.card:nth-child(5){animation-delay:.25s}.card:nth-child(6){animation-delay:.3s}
 .card-title{font-family:'Syne',sans-serif;font-size:.68rem;letter-spacing:3px;text-transform:uppercase;color:var(--ac);margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .card-title::before{content:'';display:inline-block;width:6px;height:6px;background:var(--ac);border-radius:50%;box-shadow:0 0 8px var(--ac)}
 textarea{width:100%;background:var(--sur2);border:1px solid var(--brd);border-radius:6px;color:var(--tx);font-family:'JetBrains Mono',monospace;font-size:.76rem;line-height:1.65;padding:12px;resize:vertical;outline:none;transition:border-color .2s}
@@ -30,6 +30,9 @@ textarea:focus{border-color:var(--ac)}
 .btn-p{background:var(--ac);color:#000;box-shadow:0 0 18px rgba(0,229,255,.25)}
 .btn-p:hover{box-shadow:0 0 28px rgba(0,229,255,.5);transform:translateY(-1px)}
 .btn-p:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-g{background:var(--ac3);color:#000;box-shadow:0 0 18px rgba(57,255,20,.25)}
+.btn-g:hover{box-shadow:0 0 28px rgba(57,255,20,.5);transform:translateY(-1px)}
+.btn-g:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-s{background:transparent;color:var(--ac2);border:1px solid var(--ac2)}
 .btn-s:hover{background:rgba(255,107,53,.1)}
 .btn-s:disabled{opacity:.4;cursor:not-allowed}
@@ -56,6 +59,19 @@ textarea:focus{border-color:var(--ac)}
 #status{font-size:.68rem;color:var(--mu);margin-top:8px;min-height:16px;letter-spacing:1px}
 #status.active{color:var(--ac)}#status.done{color:var(--ac3)}#status.err{color:var(--dn)}
 .pill{display:inline-block;background:var(--sur2);border:1px solid var(--brd);border-radius:3px;padding:2px 8px;font-size:.62rem;color:var(--ac);margin-left:6px}
+/* Auto-train source badges */
+.src-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.sb{display:inline-flex;align-items:center;gap:5px;background:var(--sur2);border:1px solid var(--brd);border-radius:4px;padding:4px 10px;font-size:.62rem;letter-spacing:1px;color:var(--mu);transition:all .3s}
+.sb.ok{border-color:var(--ac3);color:var(--ac3)}
+.sb.err{border-color:var(--dn);color:var(--dn)}
+.sb.local{border-color:var(--ac);color:var(--ac)}
+/* Live feed */
+#dataFeed{background:var(--sur2);border:1px solid var(--brd);border-radius:6px;padding:10px 12px;font-size:.67rem;line-height:1.7;color:var(--tx);max-height:150px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+#dataFeed.empty{color:var(--mu);font-style:italic}
+.feed-line-src{color:var(--ac2)}
+/* Auto pulsing indicator */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulse{animation:pulse 1.5s infinite}
 @keyframes fadeDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 </style>
@@ -72,22 +88,58 @@ textarea:focus{border-color:var(--ac)}
     <span class="badge">Causal Mask</span>
     <span class="badge">LayerNorm</span>
     <span class="badge">Adam + Warmup</span>
-    <span class="badge">Nucleus Sampling</span>
-    <span class="badge">Math Dataset</span>
+    <span class="badge">Live Data Sources</span>
+    <span class="badge">Auto-Train</span>
   </div>
+</div>
+
+<!-- 00 Auto-Train -->
+<div class="card">
+  <div class="card-title">00 — Auto-Train (Live Continuous)</div>
+  <div class="expl">
+    <strong>Fully automatic:</strong> Connects to Wikipedia, HackerNews, JokeAPI &amp; AdviceSlip — no API keys needed. Fetches fresh text every 2 minutes, grows the corpus, and trains the Transformer continuously. Fixed 96-char ASCII vocab so the model never restarts.
+  </div>
+  <!-- Data source badges -->
+  <div class="src-badges">
+    <span class="sb local" id="sbMath">&#x2205; Math+QA (seed)</span>
+    <span class="sb" id="sbWiki">&#x1F310; Wikipedia</span>
+    <span class="sb" id="sbHN">&#x1F525; HackerNews</span>
+    <span class="sb" id="sbJoke">&#x1F604; JokeAPI</span>
+    <span class="sb" id="sbAdvice">&#x1F4A1; AdviceSlip</span>
+    <span class="sb" id="sbOTD">&#x1F4C5; Wiki On-This-Day</span>
+  </div>
+  <!-- Controls -->
+  <div class="btn-row" style="margin-bottom:10px">
+    <button class="btn btn-g" id="autoBtn" onclick="toggleAutoTrain()">&#9654; Start Auto-Train</button>
+    <span class="pill" id="aPill1">corpus: 0 KB</span>
+    <span class="pill" id="aPill2">0 fetches</span>
+    <span class="pill" id="aPill3" style="display:none">next fetch: 2:00</span>
+  </div>
+  <div id="autoStat" style="font-size:.68rem;color:var(--mu);min-height:16px;margin-bottom:10px">— press Start Auto-Train to begin —</div>
+  <!-- Live metrics -->
+  <div class="stats" id="autoMetrics" style="display:none;margin-bottom:14px">
+    <div class="stat"><span class="sl">Step</span><span class="sv" id="amStep">—</span></div>
+    <div class="stat"><span class="sl">Loss</span><span class="sv" id="amLoss">—</span></div>
+    <div class="stat"><span class="sl">PPL</span><span class="sv" id="amPpl">—</span></div>
+    <div class="stat"><span class="sl">Corpus</span><span class="sv" id="amCorpus">—</span></div>
+    <div class="stat"><span class="sl">Params</span><span class="sv" id="amParams">—</span></div>
+  </div>
+  <!-- Live data feed -->
+  <div style="font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:5px">Live Data Feed</div>
+  <div id="dataFeed" class="empty">No data fetched yet…</div>
 </div>
 
 <!-- 01 Dataset -->
 <div class="card">
-  <div class="card-title">01 — Training Dataset</div>
+  <div class="card-title">01 — Manual Training Dataset</div>
   <div class="expl">
-    <strong>Tip:</strong> Character-level models need lots of repetitive patterns. Click <em>Load Math+QA</em> to fill in ≈20k chars of arithmetic facts and Q&amp;A pairs—the model will actually learn to answer <em>3*4=</em> and <em>Q: 5+7? A:</em> style prompts after training.
+    <strong>Manual mode:</strong> Paste your own text or use a preset below, then configure the architecture and click Train. Independent from Auto-Train above.
   </div>
   <div class="btn-row" style="margin-bottom:10px">
-    <button class="btn btn-s" onclick="loadMathDataset()">&#x2205; Load Math + QA Dataset</button>
+    <button class="btn btn-s" onclick="loadMathDataset()">&#x2205; Load Math + QA</button>
     <button class="btn btn-s" onclick="loadShakespeare()">&#x2609; Load Shakespeare</button>
   </div>
-  <textarea id="trainText" rows="7" placeholder="Paste text or click a loader above…"></textarea>
+  <textarea id="trainText" rows="6" placeholder="Paste text or click a loader above…"></textarea>
   <div style="margin-top:8px;font-size:.66rem;color:var(--mu)">
     <span id="charCount">0</span> chars · <span id="vocabCount">0</span> unique tokens
     <span class="pill" id="paramCount">0 params</span>
@@ -97,7 +149,7 @@ textarea:focus{border-color:var(--ac)}
 
 <!-- 02 Architecture -->
 <div class="card">
-  <div class="card-title">02 — Transformer Config</div>
+  <div class="card-title">02 — Transformer Config (Manual)</div>
   <div class="cfg">
     <div class="cfg-item"><label>Context (seq len)</label><input type="range" id="seqLen" min="8" max="32" value="16" step="4"><div class="val" id="seqLenV">16</div></div>
     <div class="cfg-item"><label>Embed Dim</label><input type="range" id="embD" min="1" max="4" value="2" step="1"><div class="val" id="embDV">48</div></div>
@@ -132,28 +184,26 @@ textarea:focus{border-color:var(--ac)}
     <div class="cfg-item"><label>Length</label><input type="range" id="genLen" min="50" max="500" value="200" step="50"><div class="val" id="genLenV">200</div></div>
   </div>
   <div class="prow">
-    <input type="text" id="seedInput" placeholder="Seed (e.g. &quot;3+4=&quot; or &quot;Q: &quot;)" value="Q: ">
+    <input type="text" id="seedInput" placeholder='Seed (e.g. "3+4=" or "Q: ")' value="Q: ">
     <button class="btn btn-p" id="genBtn" onclick="generateText()" disabled>Generate</button>
   </div>
   <div class="outbox empty" id="outBox">Train the model first…</div>
 </div>
 
-<!-- 04 Architecture explainer -->
+<!-- 04 How It Works -->
 <div class="card">
   <div class="card-title">04 — How It Works</div>
   <div style="font-size:.7rem;line-height:2.1;color:var(--mu)">
     <span style="color:var(--ac)">1.</span> <strong style="color:var(--tx)">Token + Positional Embeddings</strong> — Each character → D-dim learned vector. Position index → separate D-dim vector. Sum them.<br>
-    <span style="color:var(--ac)">2.</span> <strong style="color:var(--tx)">Multi-Head Causal Self-Attention</strong> — Project to Q,K,V. Compute scaled dot-product scores. Apply triangular mask so position <em>i</em> only sees ≤<em>i</em>. Softmax → weighted sum of V. Concat heads → Wo.<br>
-    <span style="color:var(--ac)">3.</span> <strong style="color:var(--tx)">Residual Connections</strong> — x = x + attn(LN(x)) and x = x + ffn(LN(x)). Prevents vanishing gradients across layers.<br>
-    <span style="color:var(--ac)">4.</span> <strong style="color:var(--tx)">LayerNorm</strong> — Normalize each position vector: ŷ = γ⋅(x−μ)/σ + β. Full backward formula implemented (not approximated).<br>
-    <span style="color:var(--ac)">5.</span> <strong style="color:var(--tx)">Feed-Forward Network</strong> — Two linear layers with ReLU: D → F → D per position. Independent across positions.<br>
-    <span style="color:var(--ac)">6.</span> <strong style="color:var(--tx)">Cross-Entropy Loss</strong> — Averaged over all seq positions simultaneously—gives S× more gradient signal per forward pass vs single-token prediction.<br>
-    <span style="color:var(--ac)">7.</span> <strong style="color:var(--tx)">Full Manual Backprop</strong> — Chain rule through softmax, attention, LN, residuals, FFN—zero autograd libraries.<br>
-    <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Gradient Clipping + Adam</strong> — Global norm ≤1.0. Adam β₁=0.9, β₂=0.999 with bias correction applied to every parameter.<br>
-    <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp first 8% of steps; cosine anneal 3e−3 → 5e−5.<br>
-    <span style="color:var(--ac)">10.</span> <strong style="color:var(--tx)">Nucleus Sampling</strong> — Top-p keeps the minimal token set covering probability mass p.
+    <span style="color:var(--ac)">2.</span> <strong style="color:var(--tx)">Multi-Head Causal Self-Attention</strong> — Project to Q,K,V. Scaled dot-product scores. Triangular causal mask. Softmax → weighted V. Concat heads → Wo.<br>
+    <span style="color:var(--ac)">3.</span> <strong style="color:var(--tx)">Residual + LayerNorm</strong> — Pre-norm: x = x + block(LN(x)). Full LN backward (not approximated).<br>
+    <span style="color:var(--ac)">4.</span> <strong style="color:var(--tx)">Feed-Forward Network</strong> — D → F → D per position with ReLU. Correct backward: dBf = dpre @ Wf1.T.<br>
+    <span style="color:var(--ac)">5.</span> <strong style="color:var(--tx)">Cross-Entropy over all S positions</strong> — S× more gradient signal per forward pass than single-token prediction.<br>
+    <span style="color:var(--ac)">6.</span> <strong style="color:var(--tx)">Grad Clip + Adam</strong> — Global norm ≤1.0; Adam β₁=0.9, β₂=0.999 with bias correction.<br>
+    <span style="color:var(--ac)">7.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp 8% of steps; cosine 3e−3 → 5e−5.<br>
+    <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Auto-Train Sources</strong> — Wikipedia (random article summaries), HackerNews (top story titles), JokeAPI, AdviceSlip, Wikipedia On-This-Day. All CORS-enabled, no API keys. Fetched every 2 min, appended to a 200KB rolling corpus.
   </div>
-  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.1 · TRANSFORMER · PURE VANILLA JS · NO LIBRARIES</div>
+  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.2 · TRANSFORMER · AUTO-TRAIN · PURE VANILLA JS</div>
 </div>
 
 </div>
@@ -163,15 +213,12 @@ textarea:focus{border-color:var(--ac)}
 // =====================================================================
 // Matrix utilities  (flat Float32Array, row-major)
 // =====================================================================
-// C[M,N] = A[M,K] @ B[K,N]
 function mm(A,B,M,K,N){const C=new Float32Array(M*N);for(let i=0;i<M;i++)for(let k=0;k<K;k++){const a=A[i*K+k];if(a===0)continue;for(let j=0;j<N;j++)C[i*N+j]+=a*B[k*N+j];}return C;}
-// C[K,N] = A[M,K].T @ B[M,N]
 function mmT1(A,B,M,K,N){const C=new Float32Array(K*N);for(let i=0;i<M;i++)for(let k=0;k<K;k++){const a=A[i*K+k];for(let j=0;j<N;j++)C[k*N+j]+=a*B[i*N+j];}return C;}
-// C[M,K] = A[M,N] @ B[K,N].T
 function mmT2(A,B,M,N,K){const C=new Float32Array(M*K);for(let i=0;i<M;i++)for(let n=0;n<N;n++){const a=A[i*N+n];for(let k=0;k<K;k++)C[i*K+k]+=a*B[k*N+n];}return C;}
 
 // =====================================================================
-// LayerNorm  (applied row-wise over [S, D] tensor)
+// LayerNorm  (row-wise over [S, D])
 // =====================================================================
 function lnFwd(X,g,b,S,D){
   const Y=new Float32Array(S*D),xn=new Float32Array(S*D),rs=new Float32Array(S),eps=1e-5;
@@ -197,19 +244,14 @@ function lnBwd(dY,xn,rs,g,S,D){
 
 // =====================================================================
 // Multi-head causal self-attention  forward
-// Q,K,V: [S, D]   (D = nh*hd)
 // =====================================================================
 function attnFwd(Q,K,V,S,D,nh,hd){
-  const sc=1/Math.sqrt(hd);
-  const concat=new Float32Array(S*D),allA=[];
+  const sc=1/Math.sqrt(hd),concat=new Float32Array(S*D),allA=[];
   for(let h=0;h<nh;h++){
-    const off=h*hd;
-    const Qh=new Float32Array(S*hd),Kh=new Float32Array(S*hd),Vh=new Float32Array(S*hd);
+    const off=h*hd,Qh=new Float32Array(S*hd),Kh=new Float32Array(S*hd),Vh=new Float32Array(S*hd);
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++){Qh[s*hd+d]=Q[s*D+off+d];Kh[s*hd+d]=K[s*D+off+d];Vh[s*hd+d]=V[s*D+off+d];}
-    // Scores [S,S] causal
     const sc2=new Float32Array(S*S);
     for(let i=0;i<S;i++)for(let j=0;j<=i;j++){let t=0;for(let d=0;d<hd;d++)t+=Qh[i*hd+d]*Kh[j*hd+d];sc2[i*S+j]=t*sc;}
-    // Softmax rows (causal mask: j>i treated as -inf via being zero-initialized)
     const at=new Float32Array(S*S);
     for(let i=0;i<S;i++){
       let mx=-1e9;for(let j=0;j<=i;j++)if(sc2[i*S+j]>mx)mx=sc2[i*S+j];
@@ -217,7 +259,6 @@ function attnFwd(Q,K,V,S,D,nh,hd){
       for(let j=0;j<=i;j++)at[i*S+j]/=sm;
     }
     allA.push(at);
-    // out_h = at @ Vh
     for(let i=0;i<S;i++)for(let d=0;d<hd;d++){let t=0;for(let j=0;j<=i;j++)t+=at[i*S+j]*Vh[j*hd+d];concat[i*D+off+d]=t;}
   }
   return{concat,allA};
@@ -227,34 +268,26 @@ function attnFwd(Q,K,V,S,D,nh,hd){
 // Multi-head causal self-attention  backward
 // =====================================================================
 function attnBwd(dConcat,Q,K,V,allA,Wq,Wk,Wv,A_in,S,D,nh,hd){
-  const sc=1/Math.sqrt(hd);
-  const dQ=new Float32Array(S*D),dK=new Float32Array(S*D),dV=new Float32Array(S*D);
+  const sc=1/Math.sqrt(hd),dQ=new Float32Array(S*D),dK=new Float32Array(S*D),dV=new Float32Array(S*D);
   for(let h=0;h<nh;h++){
     const off=h*hd,at=allA[h];
     const Qh=new Float32Array(S*hd),Kh=new Float32Array(S*hd),Vh=new Float32Array(S*hd);
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++){Qh[s*hd+d]=Q[s*D+off+d];Kh[s*hd+d]=K[s*D+off+d];Vh[s*hd+d]=V[s*D+off+d];}
     const dOh=new Float32Array(S*hd);
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++)dOh[s*hd+d]=dConcat[s*D+off+d];
-    // dV: dV[j,d] = sum_{i>=j} at[i,j] * dOh[i,d]
     const dVh=new Float32Array(S*hd);
     for(let j=0;j<S;j++)for(let d=0;d<hd;d++){let t=0;for(let i=j;i<S;i++)t+=at[i*S+j]*dOh[i*hd+d];dVh[j*hd+d]=t;}
-    // dAttn
     const dAt=new Float32Array(S*S);
     for(let i=0;i<S;i++)for(let j=0;j<=i;j++){let t=0;for(let d=0;d<hd;d++)t+=dOh[i*hd+d]*Vh[j*hd+d];dAt[i*S+j]=t;}
-    // Softmax backward
     const dSc=new Float32Array(S*S);
     for(let i=0;i<S;i++){let dot=0;for(let j=0;j<=i;j++)dot+=at[i*S+j]*dAt[i*S+j];for(let j=0;j<=i;j++)dSc[i*S+j]=at[i*S+j]*(dAt[i*S+j]-dot)*sc;}
-    // dQh, dKh
     const dQh=new Float32Array(S*hd),dKh=new Float32Array(S*hd);
     for(let i=0;i<S;i++)for(let d=0;d<hd;d++){let t=0;for(let j=0;j<=i;j++)t+=dSc[i*S+j]*Kh[j*hd+d];dQh[i*hd+d]=t;}
     for(let j=0;j<S;j++)for(let d=0;d<hd;d++){let t=0;for(let i=j;i<S;i++)t+=dSc[i*S+j]*Qh[i*hd+d];dKh[j*hd+d]=t;}
     for(let s=0;s<S;s++)for(let d=0;d<hd;d++){dQ[s*D+off+d]+=dQh[s*hd+d];dK[s*D+off+d]+=dKh[s*hd+d];dV[s*D+off+d]+=dVh[s*hd+d];}
   }
-  // dA_in = dQ @ Wq.T + dK @ Wk.T + dV @ Wv.T
-  // dA[s,i] = sum_j dQ[s,j]*Wq[i,j] + ... (Wq stored as [D,D] = [in,out])
   const dA=new Float32Array(S*D);
   for(let s=0;s<S;s++)for(let i=0;i<D;i++){let t=0;for(let j=0;j<D;j++)t+=dQ[s*D+j]*Wq[i*D+j]+dK[s*D+j]*Wk[i*D+j]+dV[s*D+j]*Wv[i*D+j];dA[s*D+i]=t;}
-  // dWq = A_in.T @ dQ, etc.
   const dWq=mmT1(A_in,dQ,S,D,D),dbq=new Float32Array(D);
   const dWk=mmT1(A_in,dK,S,D,D),dbk=new Float32Array(D);
   const dWv=mmT1(A_in,dV,S,D,D),dbv=new Float32Array(D);
@@ -282,89 +315,73 @@ class TransformerLM{
     for(let l=0;l<nL;l++){
       const sc=0.02/(nL**0.5);
       const ly={
-        ln1g:reg(new Float32Array(D).fill(1)).p, ln1b:reg(new Float32Array(D)).p,
-        Wq:reg(r(D*D,sc)).p, bq:reg(new Float32Array(D)).p,
-        Wk:reg(r(D*D,sc)).p, bk:reg(new Float32Array(D)).p,
-        Wv:reg(r(D*D,sc)).p, bv:reg(new Float32Array(D)).p,
-        Wo:reg(r(D*D,sc)).p, bo:reg(new Float32Array(D)).p,
-        ln2g:reg(new Float32Array(D).fill(1)).p, ln2b:reg(new Float32Array(D)).p,
-        Wf1:reg(r(D*F,sc)).p, bf1:reg(new Float32Array(F)).p,
-        Wf2:reg(r(F*D,sc)).p, bf2:reg(new Float32Array(D)).p,
+        ln1g:reg(new Float32Array(D).fill(1)).p,ln1b:reg(new Float32Array(D)).p,
+        Wq:reg(r(D*D,sc)).p,bq:reg(new Float32Array(D)).p,
+        Wk:reg(r(D*D,sc)).p,bk:reg(new Float32Array(D)).p,
+        Wv:reg(r(D*D,sc)).p,bv:reg(new Float32Array(D)).p,
+        Wo:reg(r(D*D,sc)).p,bo:reg(new Float32Array(D)).p,
+        ln2g:reg(new Float32Array(D).fill(1)).p,ln2b:reg(new Float32Array(D)).p,
+        Wf1:reg(r(D*F,sc)).p,bf1:reg(new Float32Array(F)).p,
+        Wf2:reg(r(F*D,sc)).p,bf2:reg(new Float32Array(D)).p,
       };
       this.layers.push(ly);
     }
     this.lnfg=reg(new Float32Array(D).fill(1)).p;
     this.lnfb=reg(new Float32Array(D)).p;
-    this.Wout=reg(r(V*D,0.02)).p; // [V, D]
+    this.Wout=reg(r(V*D,0.02)).p;
   }
 
-  // Forward pass: tokens[S] -> logits[S,V] + cache
   forward(tokens){
     const{V,S,D,nh,hd,nL,F}=this;
-    // 1. Embed: X[s,d] = tokE[token[s],d] + posE[s,d]
     let X=new Float32Array(S*D);
     for(let s=0;s<S;s++){const te=tokens[s]*D,pe=s*D;for(let d=0;d<D;d++)X[s*D+d]=this.tokE[te+d]+this.posE[pe+d];}
     const cache={X0:X,layers:[]};
-    // 2. Transformer layers
     for(let l=0;l<nL;l++){
       const ly=this.layers[l],lc={};
-      // --- Attention sub-block ---
       lc.xA=X;
       const{Y:A,xn:axn,rs:ars}=lnFwd(X,ly.ln1g,ly.ln1b,S,D);
       lc.axn=axn;lc.ars=ars;
-      // Q,K,V = A @ W + b
       const Q=new Float32Array(S*D),K=new Float32Array(S*D),Vp=new Float32Array(S*D);
       for(let s=0;s<S;s++)for(let d=0;d<D;d++){Q[s*D+d]=ly.bq[d];K[s*D+d]=ly.bk[d];Vp[s*D+d]=ly.bv[d];}
       for(let s=0;s<S;s++)for(let i=0;i<D;i++){const a=A[s*D+i];for(let j=0;j<D;j++){Q[s*D+j]+=a*ly.Wq[i*D+j];K[s*D+j]+=a*ly.Wk[i*D+j];Vp[s*D+j]+=a*ly.Wv[i*D+j];}}
       lc.A=A;lc.Q=Q;lc.K=K;lc.V=Vp;
       const{concat,allA}=attnFwd(Q,K,Vp,S,D,nh,hd);
       lc.concat=concat;lc.allA=allA;
-      // Output projection + residual: X2 = X + concat @ Wo + bo
       const aout=new Float32Array(S*D);
       for(let s=0;s<S;s++)for(let d=0;d<D;d++)aout[s*D+d]=ly.bo[d];
       for(let s=0;s<S;s++)for(let i=0;i<D;i++){const c=concat[s*D+i];for(let j=0;j<D;j++)aout[s*D+j]+=c*ly.Wo[i*D+j];}
       lc.aout=aout;
       const X2=new Float32Array(S*D);for(let i=0;i<S*D;i++)X2[i]=X[i]+aout[i];
-      // --- FFN sub-block ---
       lc.xF=X2;
       const{Y:Bf,xn:fxn,rs:frs}=lnFwd(X2,ly.ln2g,ly.ln2b,S,D);
       lc.fxn=fxn;lc.frs=frs;lc.Bf=Bf;
-      // pre = Bf @ Wf1 + bf1  [S,F]
       const pre=new Float32Array(S*F);
       for(let s=0;s<S;s++)for(let f=0;f<F;f++)pre[s*F+f]=ly.bf1[f];
       for(let s=0;s<S;s++)for(let d=0;d<D;d++){const b=Bf[s*D+d];for(let f=0;f<F;f++)pre[s*F+f]+=b*ly.Wf1[d*F+f];}
       lc.pre=pre;
-      // h = relu(pre)  [S,F]
       const h=new Float32Array(S*F);for(let i=0;i<S*F;i++)h[i]=pre[i]>0?pre[i]:0;
       lc.h=h;
-      // ffout = h @ Wf2 + bf2  [S,D]
       const ffout=new Float32Array(S*D);
       for(let s=0;s<S;s++)for(let d=0;d<D;d++)ffout[s*D+d]=ly.bf2[d];
       for(let s=0;s<S;s++)for(let f=0;f<F;f++){const hv=h[s*F+f];for(let d=0;d<D;d++)ffout[s*D+d]+=hv*ly.Wf2[f*D+d];}
       lc.ffout=ffout;
-      // Residual: X = X2 + ffout
       X=new Float32Array(S*D);for(let i=0;i<S*D;i++)X[i]=X2[i]+ffout[i];
       cache.layers.push(lc);
     }
-    // 3. Final LN
     const{Y:Xf,xn:fxn,rs:frs}=lnFwd(X,this.lnfg,this.lnfb,S,D);
     cache.Xpre=X;cache.fxn=fxn;cache.frs=frs;cache.Xf=Xf;
-    // 4. Logits [S,V] = Xf @ Wout.T
     const logits=new Float32Array(S*V);
     for(let s=0;s<S;s++)for(let v=0;v<V;v++){let t=0;for(let d=0;d<D;d++)t+=Xf[s*D+d]*this.Wout[v*D+d];logits[s*V+v]=t;}
     cache.logits=logits;
     return cache;
   }
 
-  // Compute cross-entropy loss + gradient given targets[S]
   ceLoss(logits,targets){
-    const{V,S}=this;
-    let loss=0;
+    const{V,S}=this;let loss=0;
     const dL=new Float32Array(S*V);
     for(let s=0;s<S;s++){
       let mx=logits[s*V];for(let v=1;v<V;v++)if(logits[s*V+v]>mx)mx=logits[s*V+v];
-      let sm=0;
-      const p=new Float32Array(V);
+      let sm=0;const p=new Float32Array(V);
       for(let v=0;v<V;v++){p[v]=Math.exp(logits[s*V+v]-mx);sm+=p[v];}
       for(let v=0;v<V;v++)p[v]/=sm;
       loss+=-Math.log(p[targets[s]]+1e-10);
@@ -373,74 +390,40 @@ class TransformerLM{
     return{loss:loss/S,dL};
   }
 
-  // Full backward pass — returns gradients for all parameters
   backward(cache,dL){
     const{V,S,D,nh,hd,nL,F}=this;
-
-    // 4. dXf = dL @ Wout  [S,D]
     const dXf=new Float32Array(S*D);
     for(let s=0;s<S;s++)for(let d=0;d<D;d++){let t=0;for(let v=0;v<V;v++)t+=dL[s*V+v]*this.Wout[v*D+d];dXf[s*D+d]=t;}
-    // dWout [V,D] = dL.T @ Xf
     const dWout=mmT1(dL,cache.Xf,S,V,D);
-
-    // 3. Final LayerNorm backward
     const{dX:dXpre,dg:dlnfg,db:dlnfb}=lnBwd(dXf,cache.fxn,cache.frs,this.lnfg,S,D);
     let dX=dXpre;
-
-    // 2. Transformer layers in reverse
     for(let l=nL-1;l>=0;l--){
       const ly=this.layers[l],lc=cache.layers[l];
-
-      // FFN residual: X = X2 + ffout  =>  dX2 += dX, dffout = dX
-      const dffout=new Float32Array(dX);
-      const dX2=new Float32Array(dX);
-
-      // FFN backward
-      // dh = dffout @ Wf2.T   Wf2:[F,D]  =>  dh[S,F]
+      const dffout=new Float32Array(dX),dX2=new Float32Array(dX);
       const dh=mmT2(dffout,ly.Wf2,S,D,F);
-      // dWf2 = h.T @ dffout   [F,D]
       const dWf2=mmT1(lc.h,dffout,S,F,D);
       const dbf2=new Float32Array(D);for(let s=0;s<S;s++)for(let d=0;d<D;d++)dbf2[d]+=dffout[s*D+d];
-      // ReLU backward: dpre[s,f] = dh[s,f] if pre[s,f]>0
       const dpre=new Float32Array(S*F);for(let i=0;i<S*F;i++)dpre[i]=lc.pre[i]>0?dh[i]:0;
-      // dBf = dpre @ Wf1.T   Wf1:[D,F]  =>  mmT2(dpre, Wf1, S, F, D) = [S,D]
-      const dBf=mmT2(dpre,ly.Wf1,S,F,D);
-      // dWf1 = Bf.T @ dpre   [D,F]
+      const dBf=mmT2(dpre,ly.Wf1,S,F,D); // fixed: Wf1.T not Wf2
       const dWf1=mmT1(lc.Bf,dpre,S,D,F);
       const dbf1=new Float32Array(F);for(let s=0;s<S;s++)for(let f=0;f<F;f++)dbf1[f]+=dpre[s*F+f];
-
-      // LN2 backward
       const{dX:dX2ln,dg:dln2g,db:dln2b}=lnBwd(dBf,lc.fxn,lc.frs,ly.ln2g,S,D);
       for(let i=0;i<S*D;i++)dX2[i]+=dX2ln[i];
-
-      // Attention residual: X2 = xA + aout  =>  dxA += dX2, daout = dX2
-      const daout=new Float32Array(dX2);
-      const dxA=new Float32Array(dX2);
-
-      // Output projection backward: aout = concat @ Wo + bo
-      // dconcat = daout @ Wo.T   Wo:[D,D]  =>  mmT2(daout, Wo, S, D, D) = [S,D]
+      const daout=new Float32Array(dX2),dxA=new Float32Array(dX2);
       const dconcat=mmT2(daout,ly.Wo,S,D,D);
       const dWo=mmT1(lc.concat,daout,S,D,D);
       const dbo=new Float32Array(D);for(let s=0;s<S;s++)for(let d=0;d<D;d++)dbo[d]+=daout[s*D+d];
-
-      // Attention backward
       const{dA,dWq,dbq,dWk,dbk,dWv,dbv}=attnBwd(dconcat,lc.Q,lc.K,lc.V,lc.allA,ly.Wq,ly.Wk,ly.Wv,lc.A,S,D,nh,hd);
-
-      // LN1 backward
       const{dX:dXln1,dg:dln1g,db:dln1b}=lnBwd(dA,lc.axn,lc.ars,ly.ln1g,S,D);
       for(let i=0;i<S*D;i++)dxA[i]+=dXln1[i];
       dX=dxA;
-
       lc._grads={dln1g,dln1b,dWq,dbq,dWk,dbk,dWv,dbv,dWo,dbo,dln2g,dln2b,dWf1,dbf1,dWf2,dbf2};
     }
-
-    // 1. Embedding backward
     const dtokE=new Float32Array(V*D),dposE=new Float32Array(S*D);
     for(let s=0;s<S;s++)for(let d=0;d<D;d++){dtokE[cache._tokens[s]*D+d]+=dX[s*D+d];dposE[s*D+d]+=dX[s*D+d];}
     return{dtokE,dposE,dlnfg,dlnfb,dWout,layerGrads:cache.layers.map(lc=>lc._grads)};
   }
 
-  // Adam update for a single parameter tensor
   _adam(p,g,m,v,lr,bc1,bc2){
     const eps=1e-8;
     for(let i=0;i<p.length;i++){
@@ -449,50 +432,44 @@ class TransformerLM{
     }
   }
 
-  // Single training step: forward + backward + clip + Adam
   step(window,lr){
-    const{V,S,D,nL,F}=this;
-    const tokens=window.slice(0,S);
-    const targets=window.slice(1,S+1);
+    const{S,nL}=this;
+    const tokens=window.slice(0,S),targets=window.slice(1,S+1);
     const cache=this.forward(tokens);
     cache._tokens=tokens;
     const{loss,dL}=this.ceLoss(cache.logits,targets);
     const grads=this.backward(cache,dL);
-    // Global gradient norm clipping (max norm = 1.0)
     let gn2=0;
     const allG=[grads.dtokE,grads.dposE,grads.dlnfg,grads.dlnfb,grads.dWout];
     for(const lg of grads.layerGrads)for(const g of Object.values(lg))allG.push(g);
     for(const g of allG)for(let i=0;i<g.length;i++)gn2+=g[i]*g[i];
     const sc=Math.sqrt(gn2)>1?1/Math.sqrt(gn2):1;
     for(const g of allG)for(let i=0;i<g.length;i++)g[i]*=sc;
-    // Adam with bias correction
     this.t++;
     const bc1=1-0.9**this.t,bc2=1-0.999**this.t;
     let pi=0;
     const upd=(_p,g)=>{const e=this._ps[pi++];this._adam(e.p,g,e.m,e.v,lr,bc1,bc2);};
-    upd(this.tokE,grads.dtokE);
-    upd(this.posE,grads.dposE);
+    upd(this.tokE,grads.dtokE);upd(this.posE,grads.dposE);
     for(let l=0;l<nL;l++){
       const lg=grads.layerGrads[l];
-      upd(this.layers[l].ln1g,lg.dln1g); upd(this.layers[l].ln1b,lg.dln1b);
-      upd(this.layers[l].Wq,lg.dWq);     upd(this.layers[l].bq,lg.dbq);
-      upd(this.layers[l].Wk,lg.dWk);     upd(this.layers[l].bk,lg.dbk);
-      upd(this.layers[l].Wv,lg.dWv);     upd(this.layers[l].bv,lg.dbv);
-      upd(this.layers[l].Wo,lg.dWo);     upd(this.layers[l].bo,lg.dbo);
-      upd(this.layers[l].ln2g,lg.dln2g); upd(this.layers[l].ln2b,lg.dln2b);
-      upd(this.layers[l].Wf1,lg.dWf1);   upd(this.layers[l].bf1,lg.dbf1);
-      upd(this.layers[l].Wf2,lg.dWf2);   upd(this.layers[l].bf2,lg.dbf2);
+      upd(this.layers[l].ln1g,lg.dln1g);upd(this.layers[l].ln1b,lg.dln1b);
+      upd(this.layers[l].Wq,lg.dWq);upd(this.layers[l].bq,lg.dbq);
+      upd(this.layers[l].Wk,lg.dWk);upd(this.layers[l].bk,lg.dbk);
+      upd(this.layers[l].Wv,lg.dWv);upd(this.layers[l].bv,lg.dbv);
+      upd(this.layers[l].Wo,lg.dWo);upd(this.layers[l].bo,lg.dbo);
+      upd(this.layers[l].ln2g,lg.dln2g);upd(this.layers[l].ln2b,lg.dln2b);
+      upd(this.layers[l].Wf1,lg.dWf1);upd(this.layers[l].bf1,lg.dbf1);
+      upd(this.layers[l].Wf2,lg.dWf2);upd(this.layers[l].bf2,lg.dbf2);
     }
-    upd(this.lnfg,grads.dlnfg); upd(this.lnfb,grads.dlnfb);
+    upd(this.lnfg,grads.dlnfg);upd(this.lnfb,grads.dlnfb);
     upd(this.Wout,grads.dWout);
     return loss;
   }
 
   valLoss(seqs){
-    const{V,S}=this;
     let total=0,cnt=0;
     for(const w of seqs){
-      const tokens=w.slice(0,S),targets=w.slice(1,S+1);
+      const tokens=w.slice(0,this.S),targets=w.slice(1,this.S+1);
       const cache=this.forward(tokens);
       const{loss}=this.ceLoss(cache.logits,targets);
       total+=loss;cnt++;
@@ -502,26 +479,21 @@ class TransformerLM{
 
   sample(ctxTokens,temp,topK,topP){
     const{V,S}=this;
-    // Pad/truncate context to exactly S tokens
     const tok=new Array(S).fill(0);
     const off=Math.max(0,ctxTokens.length-S);
     for(let i=0;i<Math.min(S,ctxTokens.length);i++)tok[S-Math.min(S,ctxTokens.length)+i]=ctxTokens[off+i];
     const cache=this.forward(tok);
-    // Use last-position logits
     const logits=cache.logits.slice((S-1)*V,S*V);
-    // Temperature softmax
     let mx=logits[0];for(let v=1;v<V;v++)if(logits[v]>mx)mx=logits[v];
     const p=new Float32Array(V);let sm=0;
     for(let v=0;v<V;v++){p[v]=Math.exp((logits[v]-mx)/temp);sm+=p[v];}
     for(let v=0;v<V;v++)p[v]/=sm;
-    // Top-k filtering
     if(topK>0&&topK<V){
       const idx=Array.from({length:V},(_,i)=>i).sort((a,b)=>p[b]-p[a]);
       const keep=new Set(idx.slice(0,topK));
       let s2=0;for(let v=0;v<V;v++){if(!keep.has(v))p[v]=0;else s2+=p[v];}
       for(let v=0;v<V;v++)p[v]/=s2;
     }
-    // Top-p (nucleus) filtering
     if(topP<0.999){
       const idx=Array.from({length:V},(_,i)=>i).filter(i=>p[i]>0).sort((a,b)=>p[b]-p[a]);
       let cum=0,cut=idx.length;
@@ -538,16 +510,12 @@ class TransformerLM{
   generate(seed,charToIdx,vocab,length,temp,topK,topP){
     const ctx=seed.split('').map(c=>charToIdx[c]??0);
     let out=seed;
-    for(let i=0;i<length;i++){
-      const idx=this.sample(ctx,temp,topK,topP);
-      out+=vocab[idx];
-      ctx.push(idx);
-    }
+    for(let i=0;i<length;i++){const idx=this.sample(ctx,temp,topK,topP);out+=vocab[idx];ctx.push(idx);}
     return out;
   }
 
   nParams(){
-    const{V,S,D,nh,nL,F}=this;
+    const{V,S,D,nL,F}=this;
     return V*D+S*D+nL*(D+D+3*D*D+3*D+D*D+D+D+D+D*F+F+F*D+D)+D+D+V*D;
   }
 }
@@ -557,37 +525,13 @@ class TransformerLM{
 // =====================================================================
 function generateMathDataset(){
   let t='';
-  // Addition table 0-30
   for(let a=0;a<=30;a++)for(let b=0;b<=30;b++)t+=`${a}+${b}=${a+b}\n`;
-  // Subtraction 0-20
   for(let a=0;a<=20;a++)for(let b=0;b<=a;b++)t+=`${a}-${b}=${a-b}\n`;
-  // Multiplication 0-15
   for(let a=0;a<=15;a++)for(let b=0;b<=15;b++)t+=`${a}*${b}=${a*b}\n`;
-  // Squares
   for(let a=0;a<=20;a++)t+=`${a}^2=${a*a}\n`;
-  // Q&A addition
   for(let a=0;a<=20;a++)for(let b=0;b<=20;b++)t+=`Q:${a}+${b}? A:${a+b}\n`;
-  // Q&A multiplication
   for(let a=0;a<=12;a++)for(let b=0;b<=12;b++)t+=`Q:${a}*${b}? A:${a*b}\n`;
-  // Factual Q&A (repeated for weight)
-  const qa=[
-    'Q: capital of France? A: Paris',
-    'Q: capital of India? A: New Delhi',
-    'Q: capital of Japan? A: Tokyo',
-    'Q: capital of Germany? A: Berlin',
-    'Q: capital of USA? A: Washington',
-    'Q: capital of UK? A: London',
-    'Q: 2+2? A: 4','Q: 3*3? A: 9','Q: 10-4? A: 6',
-    'Q: 100/10? A: 10','Q: 7*8? A: 56','Q: 12*12? A: 144',
-    'Q: speed of light? A: 300000 km/s',
-    'Q: pi? A: 3.14159',
-    'Q: sqrt 4? A: 2','Q: sqrt 9? A: 3','Q: sqrt 16? A: 4','Q: sqrt 25? A: 5',
-    'Q: days in week? A: 7','Q: months in year? A: 12','Q: hours in day? A: 24',
-    'Q: seconds in minute? A: 60','Q: minutes in hour? A: 60',
-    'Q: planets in solar system? A: 8',
-    'Q: hydrogen atomic number? A: 1',
-    'Q: water formula? A: H2O','Q: CO2 formula? A: CO2',
-  ];
+  const qa=['Q: capital of France? A: Paris','Q: capital of India? A: New Delhi','Q: capital of Japan? A: Tokyo','Q: capital of Germany? A: Berlin','Q: capital of USA? A: Washington','Q: capital of UK? A: London','Q: 2+2? A: 4','Q: 3*3? A: 9','Q: 10-4? A: 6','Q: 100/10? A: 10','Q: 7*8? A: 56','Q: 12*12? A: 144','Q: speed of light? A: 300000 km/s','Q: pi? A: 3.14159','Q: sqrt 4? A: 2','Q: sqrt 9? A: 3','Q: sqrt 16? A: 4','Q: sqrt 25? A: 5','Q: days in week? A: 7','Q: months in year? A: 12','Q: hours in day? A: 24','Q: seconds in minute? A: 60','Q: minutes in hour? A: 60','Q: planets in solar system? A: 8','Q: hydrogen atomic number? A: 1','Q: water formula? A: H2O','Q: CO2 formula? A: CO2'];
   for(let i=0;i<5;i++)t+=qa.join('\n')+'\n';
   return t;
 }
@@ -627,12 +571,215 @@ With this regard their currents turn awry,
 And lose the name of action.`;
 
 // =====================================================================
-// Global state
+// AUTO-TRAIN  —  live continuous training from free web sources
+// =====================================================================
+let autoRunning=false, autoInited=false;
+let autoCorpus='', autoEma=null, autoStep=0, autoFetches=0, autoLastFetch=0;
+let autoCountdown=null;
+const AUTO_CORPUS_MAX=200000;   // 200 KB rolling window
+const AUTO_FETCH_MS=2*60*1000;  // 2 minutes
+
+// Fixed 96-char ASCII vocab (printable + newline) so model never restarts
+function asciiVocab(){
+  const v=['\n'];
+  for(let i=32;i<=126;i++)v.push(String.fromCharCode(i));
+  return v.sort();
+}
+
+function filterAscii(text){
+  const out=[];
+  for(let i=0;i<text.length;i++){const c=text.charCodeAt(i);if(c===10||(c>=32&&c<=126))out.push(text[i]);}
+  return out.join('');
+}
+
+// ---- Data source fetchers (all CORS-enabled, no API key) ----
+async function _fetchWiki(){
+  const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/Special:Random');
+  const d=await r.json();
+  return `== ${d.title||''} ==\n${d.extract||''}\n\n`;
+}
+
+async function _fetchHN(){
+  const r=await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
+  const ids=await r.json();
+  const items=await Promise.all(ids.slice(0,6).map(id=>
+    fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(r=>r.json()).catch(()=>null)
+  ));
+  return items.filter(Boolean).map(s=>(s.title||'')+'\n').join('')+'\n';
+}
+
+async function _fetchJoke(){
+  const r=await fetch('https://v2.jokeapi.dev/joke/Programming,Misc,Pun?format=txt&type=single&safe-mode');
+  return (await r.text()).trim()+'\n\n';
+}
+
+async function _fetchAdvice(){
+  const r=await fetch('https://api.adviceslip.com/advice');
+  const d=await r.json();
+  return 'Tip: '+(d.slip?.advice||'')+'\n\n';
+}
+
+async function _fetchOTD(){
+  const now=new Date();
+  const m=String(now.getMonth()+1).padStart(2,'0');
+  const d=String(now.getDate()).padStart(2,'0');
+  const r=await fetch(`https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${m}/${d}`);
+  const data=await r.json();
+  return (data.events||[]).slice(0,4).map(e=>`${e.year}: ${e.text}\n`).join('')+'\n';
+}
+
+const AUTO_SOURCES=[
+  {name:'Wikipedia',  badge:'sbWiki',  fn:()=>Promise.all([_fetchWiki(),_fetchWiki()]).then(v=>v.join(''))},
+  {name:'HackerNews', badge:'sbHN',    fn:_fetchHN},
+  {name:'JokeAPI',    badge:'sbJoke',  fn:_fetchJoke},
+  {name:'AdviceSlip', badge:'sbAdvice',fn:_fetchAdvice},
+  {name:'OnThisDay',  badge:'sbOTD',   fn:_fetchOTD},
+];
+
+async function doFetch(){
+  const results=await Promise.allSettled(AUTO_SOURCES.map(s=>s.fn()));
+  let added=0;
+  for(let i=0;i<AUTO_SOURCES.length;i++){
+    const src=AUTO_SOURCES[i];
+    const el=document.getElementById(src.badge);
+    if(results[i].status==='fulfilled'){
+      const filtered=filterAscii(results[i].value);
+      autoCorpus=(autoCorpus+filtered).slice(-AUTO_CORPUS_MAX);
+      added+=filtered.length;
+      el.className='sb ok';
+      addFeedLine(src.name,filtered.slice(0,160).replace(/\n/g,' '));
+    } else {
+      if(el)el.className='sb err';
+    }
+  }
+  autoFetches++;
+  autoLastFetch=Date.now();
+  document.getElementById('aPill2').textContent=`${autoFetches} fetches`;
+  document.getElementById('aPill1').textContent=`corpus: ${(autoCorpus.length/1000).toFixed(1)}KB`;
+  if(document.getElementById('amCorpus'))document.getElementById('amCorpus').textContent=(autoCorpus.length/1000).toFixed(0)+'K';
+  return added;
+}
+
+function addFeedLine(src,text){
+  const feed=document.getElementById('dataFeed');
+  if(feed.classList.contains('empty')){feed.classList.remove('empty');feed.textContent='';}
+  const time=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  feed.textContent=`[${time}] ${src}: ${text}\n`+feed.textContent;
+  if(feed.textContent.length>4000)feed.textContent=feed.textContent.slice(0,4000);
+}
+
+async function toggleAutoTrain(){
+  if(autoRunning){
+    autoRunning=false; // signal loop to stop; UI update happens when loop exits
+    return;
+  }
+  await startAutoTrain();
+}
+
+async function startAutoTrain(){
+  const btn=document.getElementById('autoBtn');
+  btn.disabled=true;
+  btn.textContent='Initializing…';
+
+  if(!autoInited){
+    // First start: set up fixed vocab + model
+    vocab=asciiVocab();
+    charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
+    const V=vocab.length; // 96
+    model=new TransformerLM(V,16,48,4,2,96);
+    lossHist=[];autoStep=0;autoEma=null;autoFetches=0;
+    // Seed corpus with math dataset
+    autoCorpus=filterAscii(generateMathDataset());
+    addFeedLine('Math+QA','Seeded with '+(autoCorpus.length/1000).toFixed(1)+'KB local math dataset');
+    document.getElementById('amParams').textContent=model.nParams().toLocaleString();
+    document.getElementById('paramCount').textContent=model.nParams().toLocaleString()+' params';
+    document.getElementById('genBtn').disabled=false;
+    // Initial web fetch
+    setStat('Fetching initial data from web sources…','ac');
+    await doFetch();
+    autoLastFetch=Date.now();
+    // Start countdown ticker
+    if(autoCountdown)clearInterval(autoCountdown);
+    autoCountdown=setInterval(()=>{
+      if(!autoRunning)return;
+      const ms=Math.max(0,AUTO_FETCH_MS-(Date.now()-autoLastFetch));
+      const m=Math.floor(ms/60000),s=Math.floor((ms%60000)/1000);
+      document.getElementById('aPill3').textContent=`next: ${m}:${s.toString().padStart(2,'0')}`;
+    },1000);
+    document.getElementById('aPill3').style.display='';
+    document.getElementById('autoMetrics').style.display='flex';
+    autoInited=true;
+  }
+
+  // Start / resume the loop
+  autoRunning=true;
+  btn.disabled=false;
+  btn.textContent='⏹ Stop';
+  btn.className='btn btn-d';
+
+  await runAutoLoop();
+
+  // Loop exited
+  btn.textContent='▶ Resume Auto-Train';
+  btn.className='btn btn-g';
+  setStat(`Paused — ${autoStep.toLocaleString()} steps · loss ${autoEma?autoEma.toFixed(3):'—'}  (click Resume to continue)`,'');
+}
+
+async function runAutoLoop(){
+  const maxLR=3e-3,minLR=5e-5,warmup=400,S=model.S;
+  while(autoRunning){
+    // Periodic fetch
+    if(Date.now()-autoLastFetch>=AUTO_FETCH_MS){
+      setStat('Fetching new data from web…','ac');
+      await doFetch();
+    }
+    const corpLen=autoCorpus.length;
+    if(corpLen<S+2){await sleep(100);continue;}
+    // Random window from rolling corpus
+    const start=Math.floor(Math.random()*(corpLen-S-1));
+    const w=new Array(S+1);
+    for(let j=0;j<=S;j++)w[j]=charToIdx[autoCorpus[start+j]]??0;
+    // LR: linear warmup then repeating cosine (period 8000 steps)
+    const cy=Math.max(0,autoStep-warmup);
+    const lr=autoStep<warmup
+      ?maxLR*(autoStep+1)/warmup
+      :minLR+0.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(cy%8000)/8000));
+    const loss=model.step(w,lr);
+    autoEma=autoEma===null?loss:0.98*autoEma+0.02*loss;
+    autoStep++;
+    if(autoStep%20===0)await sleep(0);
+    if(autoStep%250===0){
+      const ppl=Math.exp(autoEma);
+      document.getElementById('amStep').textContent=autoStep.toLocaleString();
+      document.getElementById('amLoss').textContent=autoEma.toFixed(3);
+      document.getElementById('amPpl').textContent=ppl.toFixed(1);
+      document.getElementById('amCorpus').textContent=(autoCorpus.length/1000).toFixed(0)+'K';
+      setStat(`step ${autoStep.toLocaleString()} · loss ${autoEma.toFixed(3)} · ppl ${ppl.toFixed(1)} · ${(autoCorpus.length/1000).toFixed(1)}KB corpus`,'ac');
+      lossHist.push({step:autoStep,tl:autoEma,vl:autoEma,lr});
+      document.getElementById('statsRow').style.display='flex';
+      document.getElementById('lossC').style.display='block';
+      document.getElementById('sPpl').textContent=ppl.toFixed(1);
+      document.getElementById('sStp').textContent=autoStep.toLocaleString();
+      document.getElementById('sVoc').textContent=model.V;
+      document.getElementById('sPar').textContent=model.nParams().toLocaleString();
+      drawChart();
+    }
+  }
+}
+
+function setStat(msg,col){
+  const el=document.getElementById('autoStat');
+  el.textContent=msg;
+  el.style.color=col?`var(--${col})`:'var(--mu)';
+}
+
+// =====================================================================
+// Global state (shared between auto and manual)
 // =====================================================================
 let model=null,vocab=[],charToIdx={},lossHist=[],trainRunning=false;
 
 // =====================================================================
-// Training loop
+// Manual training loop
 // =====================================================================
 async function startTraining(){
   const text=document.getElementById('trainText').value.trim();
@@ -646,31 +793,25 @@ async function startTraining(){
   const nL=parseInt(document.getElementById('nL').value);
   const FDIMS=[64,96,128,192],F=FDIMS[parseInt(document.getElementById('ffnD').value)-1];
   const maxSteps=parseInt(document.getElementById('steps').value)*100;
-  const D=Math.floor(E/nh)*nh; // ensure D divisible by nh
-  // Build sliding windows of length S+1
+  const D=Math.floor(E/nh)*nh;
   const allW=[];
   for(let i=0;i+S<text.length;i++){
-    const w=new Array(S+1);
-    for(let j=0;j<=S;j++)w[j]=charToIdx[text[i+j]]??0;
-    allW.push(w);
+    const w=new Array(S+1);for(let j=0;j<=S;j++)w[j]=charToIdx[text[i+j]]??0;allW.push(w);
   }
   const sp=Math.floor(allW.length*0.9);
   const trainW=allW.slice(0,sp),valW=allW.slice(sp);
   model=new TransformerLM(V,S,D,nh,nL,F);
-  lossHist=[];trainRunning=true;
+  lossHist=[];trainRunning=true;autoInited=false; // reset auto so next auto-start is fresh
   document.getElementById('trainBtn').disabled=true;
   document.getElementById('stopBtn').disabled=false;
   document.getElementById('genBtn').disabled=true;
   document.getElementById('statsRow').style.display='none';
   document.getElementById('lossC').style.display='none';
   document.getElementById('progBar').style.width='0%';
-  // LR schedule: linear warmup then cosine decay
   const maxLR=3e-3,minLR=5e-5,warmup=Math.max(50,maxSteps*.08|0);
   let ema=null;
   for(let step=0;step<maxSteps&&trainRunning;step++){
-    const lr=step<warmup
-      ?maxLR*(step+1)/warmup
-      :minLR+.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(step-warmup)/(maxSteps-warmup)));
+    const lr=step<warmup?maxLR*(step+1)/warmup:minLR+.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(step-warmup)/(maxSteps-warmup)));
     const w=trainW[Math.floor(Math.random()*trainW.length)];
     const loss=model.step(w,lr);
     ema=ema===null?loss:0.98*ema+0.02*loss;
@@ -678,9 +819,8 @@ async function startTraining(){
     if(step%100===0)document.getElementById('progBar').style.width=((step+1)/maxSteps*100)+'%';
     if(step%300===0||step===maxSteps-1){
       const vl=model.valLoss((valW.length?valW:trainW).slice(0,Math.min(200,valW.length||trainW.length)));
-      lossHist.push({step,tl:ema,vl,lr});
-      drawChart();
-      setStatus(`step ${step.toLocaleString()}/${maxSteps.toLocaleString()} · train ${ema.toFixed(3)} · val ${vl.toFixed(3)} · lr ${lr.toExponential(1)}`,'active');
+      lossHist.push({step,tl:ema,vl,lr});drawChart();
+      setStatus(`step ${step.toLocaleString()}/${maxSteps.toLocaleString()} · train ${ema.toFixed(3)} · val ${vl.toFixed(3)}`,'active');
     }
   }
   const ev=valW.length?valW:trainW;
@@ -703,20 +843,31 @@ async function startTraining(){
 function stopTraining(){trainRunning=false;document.getElementById('stopBtn').disabled=true;}
 
 function resetModel(){
-  trainRunning=false;model=null;vocab=[];charToIdx={};lossHist=[];
+  trainRunning=false;autoRunning=false;autoInited=false;
+  model=null;vocab=[];charToIdx={};lossHist=[];autoCorpus='';autoEma=null;autoStep=0;autoFetches=0;
   document.getElementById('progBar').style.width='0%';
   document.getElementById('statsRow').style.display='none';
   document.getElementById('lossC').style.display='none';
+  document.getElementById('autoMetrics').style.display='none';
   document.getElementById('genBtn').disabled=true;
   document.getElementById('stopBtn').disabled=true;
   document.getElementById('trainBtn').disabled=false;
+  document.getElementById('autoBtn').textContent='▶ Start Auto-Train';
+  document.getElementById('autoBtn').className='btn btn-g';
   document.getElementById('outBox').textContent='Train the model first…';
   document.getElementById('outBox').classList.add('empty');
+  document.getElementById('dataFeed').textContent='No data fetched yet…';
+  document.getElementById('dataFeed').classList.add('empty');
+  document.getElementById('aPill1').textContent='corpus: 0 KB';
+  document.getElementById('aPill2').textContent='0 fetches';
+  document.getElementById('aPill3').style.display='none';
+  setStat('— press Start Auto-Train to begin —','');
   setStatus('— model reset —','');
+  AUTO_SOURCES.forEach(s=>{const el=document.getElementById(s.badge);if(el)el.className='sb';});
 }
 
 // =====================================================================
-// Text generation
+// Generation
 // =====================================================================
 function generateText(){
   if(!model)return;
@@ -779,7 +930,7 @@ function loadShakespeare(){document.getElementById('trainText').value=SHAKESPEAR
 
 const trainTxt=document.getElementById('trainText');
 trainTxt.addEventListener('input',updateUI);
-loadMathDataset(); // default dataset on page load
+loadMathDataset();
 
 function updateUI(){
   const txt=trainTxt.value;
