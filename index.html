@@ -203,7 +203,7 @@ textarea:focus{border-color:var(--ac)}
     <span style="color:var(--ac)">6.</span> <strong style="color:var(--tx)">Grad Clip + Adam</strong> — Global norm ≤1.0; Adam β₁=0.9, β₂=0.999 with bias correction.<br>
     <span style="color:var(--ac)">7.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp 8% of steps; cosine 3e−3 → 5e−5.<br>
     <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Auto-Train Sources</strong> — Wikipedia, HackerNews, JokeAPI, AdviceSlip, On-This-Day. All CORS-enabled, no API keys. Fetched every 2 min, appended to a 200KB rolling corpus.<br>
-    <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">Persistent Memory</strong> — Weights + Adam states saved to localStorage every 500 steps and on Stop. Next visit: knowledge restored automatically. Reset only wipes on explicit confirmation.
+    <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">Persistent Memory</strong> — Weights + Adam states saved to localStorage every 100 steps, on Stop, and on page refresh/close. Next visit: knowledge restored automatically. Reset only wipes on explicit confirmation.
   </div>
   <div style="background:rgba(57,255,20,.04);border-left:3px solid var(--ac3);border-radius:0 6px 6px 0;padding:10px 14px;font-size:.65rem;line-height:1.9;color:var(--mu);margin-top:12px">
     <strong style="color:var(--ac3);letter-spacing:1px">LEARNING PHILOSOPHY</strong><br>
@@ -214,7 +214,7 @@ textarea:focus{border-color:var(--ac)}
     Knowledge is not memory. Knowledge is <em>understanding</em>: the ability to explain, predict, and connect ideas.<br>
     <strong style="color:var(--tx)">Never stop learning. Never stop improving. Repeat. Forever.</strong>
   </div>
-  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.3 · TRANSFORMER · AUTO-TRAIN · PERSISTENT MEMORY · PURE VANILLA JS</div>
+  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.3.1 · TRANSFORMER · AUTO-TRAIN · PERSISTENT MEMORY · PURE VANILLA JS</div>
 </div>
 
 </div>
@@ -415,7 +415,7 @@ class TransformerLM{
       const dWf2=mmT1(lc.h,dffout,S,F,D);
       const dbf2=new Float32Array(D);for(let s=0;s<S;s++)for(let d=0;d<D;d++)dbf2[d]+=dffout[s*D+d];
       const dpre=new Float32Array(S*F);for(let i=0;i<S*F;i++)dpre[i]=lc.pre[i]>0?dh[i]:0;
-      const dBf=mmT2(dpre,ly.Wf1,S,F,D); // fixed: Wf1.T not Wf2
+      const dBf=mmT2(dpre,ly.Wf1,S,F,D);
       const dWf1=mmT1(lc.Bf,dpre,S,D,F);
       const dbf1=new Float32Array(F);for(let s=0;s<S;s++)for(let f=0;f<F;f++)dbf1[f]+=dpre[s*F+f];
       const{dX:dX2ln,dg:dln2g,db:dln2b}=lnBwd(dBf,lc.fxn,lc.frs,ly.ln2g,S,D);
@@ -603,7 +603,7 @@ function saveCheckpoint(){
     localStorage.setItem(CKPT_KEY,JSON.stringify(d));
     const el=document.getElementById('ckptPill');
     if(el){el.style.display='';el.textContent='💾 step '+autoStep.toLocaleString();}
-  }catch(e){}
+  }catch(e){console.error('Checkpoint save failed:',e);}
 }
 
 function loadCheckpoint(){
@@ -717,7 +717,7 @@ function addFeedLine(src,text){
 
 async function toggleAutoTrain(){
   if(autoRunning){
-    autoRunning=false; // signal loop to stop; UI update happens when loop exits
+    autoRunning=false;
     return;
   }
   await startAutoTrain();
@@ -732,13 +732,11 @@ async function startAutoTrain(){
     lossHist=[];
     const resumed=loadCheckpoint();
     if(resumed){
-      // Knowledge restored — continue where we left off
       addFeedLine('Memory','Restored checkpoint: step '+autoStep.toLocaleString()+' · loss '+(autoEma?autoEma.toFixed(3):'—')+' · '+Math.round(autoCorpus.length/1000)+'KB corpus');
       setStat('Memory restored (step '+autoStep.toLocaleString()+') — continuing…','ac3');
       const el=document.getElementById('ckptPill');
       if(el){el.style.display='';el.textContent='💾 step '+autoStep.toLocaleString();}
     } else {
-      // No saved state — fresh start
       vocab=asciiVocab();charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
       model=new TransformerLM(96,16,48,4,2,96);
       autoStep=0;autoEma=null;autoFetches=0;
@@ -749,11 +747,9 @@ async function startAutoTrain(){
     document.getElementById('amParams').textContent=model.nParams().toLocaleString();
     document.getElementById('paramCount').textContent=model.nParams().toLocaleString()+' params';
     document.getElementById('genBtn').disabled=false;
-    // Fetch new web data regardless
     setStat('Fetching new data from web sources…','ac');
     await doFetch();
     autoLastFetch=Date.now();
-    // Start countdown ticker
     if(autoCountdown)clearInterval(autoCountdown);
     autoCountdown=setInterval(()=>{
       if(!autoRunning)return;
@@ -766,7 +762,6 @@ async function startAutoTrain(){
     autoInited=true;
   }
 
-  // Start / resume the loop
   autoRunning=true;
   btn.disabled=false;
   btn.textContent='⏹ Stop';
@@ -774,7 +769,6 @@ async function startAutoTrain(){
 
   await runAutoLoop();
 
-  // Loop exited — save memory before pausing
   saveCheckpoint();
   btn.textContent='▶ Resume Auto-Train';
   btn.className='btn btn-g';
@@ -784,18 +778,15 @@ async function startAutoTrain(){
 async function runAutoLoop(){
   const maxLR=3e-3,minLR=5e-5,warmup=400,S=model.S;
   while(autoRunning){
-    // Periodic fetch
     if(Date.now()-autoLastFetch>=AUTO_FETCH_MS){
       setStat('Fetching new data from web…','ac');
       await doFetch();
     }
     const corpLen=autoCorpus.length;
     if(corpLen<S+2){await sleep(100);continue;}
-    // Random window from rolling corpus
     const start=Math.floor(Math.random()*(corpLen-S-1));
     const w=new Array(S+1);
     for(let j=0;j<=S;j++)w[j]=charToIdx[autoCorpus[start+j]]??0;
-    // LR: linear warmup then repeating cosine (period 8000 steps)
     const cy=Math.max(0,autoStep-warmup);
     const lr=autoStep<warmup
       ?maxLR*(autoStep+1)/warmup
@@ -804,7 +795,7 @@ async function runAutoLoop(){
     autoEma=autoEma===null?loss:0.98*autoEma+0.02*loss;
     autoStep++;
     if(autoStep%20===0)await sleep(0);
-    if(autoStep%500===0)saveCheckpoint(); // persist knowledge — never lose progress
+    if(autoStep%100===0)saveCheckpoint();
     if(autoStep%250===0){
       const ppl=Math.exp(autoEma);
       document.getElementById('amStep').textContent=autoStep.toLocaleString();
@@ -858,7 +849,7 @@ async function startTraining(){
   const sp=Math.floor(allW.length*0.9);
   const trainW=allW.slice(0,sp),valW=allW.slice(sp);
   model=new TransformerLM(V,S,D,nh,nL,F);
-  lossHist=[];trainRunning=true;autoInited=false; // reset auto so next auto-start is fresh
+  lossHist=[];trainRunning=true;autoInited=false;
   document.getElementById('trainBtn').disabled=true;
   document.getElementById('stopBtn').disabled=false;
   document.getElementById('genBtn').disabled=true;
@@ -1027,6 +1018,10 @@ function updateSliders(){
 
 function setStatus(msg,type){const el=document.getElementById('status');el.textContent=msg;el.className=type;}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// Save on page refresh / close — never lose progress
+window.addEventListener('pagehide', ()=>saveCheckpoint());
+window.addEventListener('beforeunload', ()=>saveCheckpoint());
 </script>
 </body>
 </html>
