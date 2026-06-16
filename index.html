@@ -97,7 +97,7 @@ textarea:focus{border-color:var(--ac)}
 <div class="card">
   <div class="card-title">00 — Auto-Train (Live Continuous)</div>
   <div class="expl">
-    <strong>Fully automatic:</strong> Connects to Wikipedia, HackerNews, JokeAPI &amp; AdviceSlip — no API keys needed. Fetches fresh text every 2 minutes, grows the corpus, and trains the Transformer continuously. Fixed 96-char ASCII vocab so the model never restarts.
+    <strong>Read. Observe. Compare. Learn.</strong> Connects to Wikipedia, HackerNews, JokeAPI, AdviceSlip &amp; On-This-Day — no API keys. Fetches every 2 min, trains continuously. <strong>Knowledge is never erased</strong> — weights are saved to your browser automatically and restored on every visit. The model grows smarter over time without resetting.
   </div>
   <!-- Data source badges -->
   <div class="src-badges">
@@ -114,6 +114,7 @@ textarea:focus{border-color:var(--ac)}
     <span class="pill" id="aPill1">corpus: 0 KB</span>
     <span class="pill" id="aPill2">0 fetches</span>
     <span class="pill" id="aPill3" style="display:none">next fetch: 2:00</span>
+    <span class="pill" id="ckptPill" style="display:none;color:var(--ac3)">&#x1F4BE; no checkpoint</span>
   </div>
   <div id="autoStat" style="font-size:.68rem;color:var(--mu);min-height:16px;margin-bottom:10px">— press Start Auto-Train to begin —</div>
   <!-- Live metrics -->
@@ -201,9 +202,19 @@ textarea:focus{border-color:var(--ac)}
     <span style="color:var(--ac)">5.</span> <strong style="color:var(--tx)">Cross-Entropy over all S positions</strong> — S× more gradient signal per forward pass than single-token prediction.<br>
     <span style="color:var(--ac)">6.</span> <strong style="color:var(--tx)">Grad Clip + Adam</strong> — Global norm ≤1.0; Adam β₁=0.9, β₂=0.999 with bias correction.<br>
     <span style="color:var(--ac)">7.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp 8% of steps; cosine 3e−3 → 5e−5.<br>
-    <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Auto-Train Sources</strong> — Wikipedia (random article summaries), HackerNews (top story titles), JokeAPI, AdviceSlip, Wikipedia On-This-Day. All CORS-enabled, no API keys. Fetched every 2 min, appended to a 200KB rolling corpus.
+    <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Auto-Train Sources</strong> — Wikipedia, HackerNews, JokeAPI, AdviceSlip, On-This-Day. All CORS-enabled, no API keys. Fetched every 2 min, appended to a 200KB rolling corpus.<br>
+    <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">Persistent Memory</strong> — Weights + Adam states saved to localStorage every 500 steps and on Stop. Next visit: knowledge restored automatically. Reset only wipes on explicit confirmation.
   </div>
-  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.2 · TRANSFORMER · AUTO-TRAIN · PURE VANILLA JS</div>
+  <div style="background:rgba(57,255,20,.04);border-left:3px solid var(--ac3);border-radius:0 6px 6px 0;padding:10px 14px;font-size:.65rem;line-height:1.9;color:var(--mu);margin-top:12px">
+    <strong style="color:var(--ac3);letter-spacing:1px">LEARNING PHILOSOPHY</strong><br>
+    Read. Observe. Listen. Compare. Think.<br>
+    Do not blindly trust any source — evaluate every claim. Search for evidence. Search for contradictions. Search for better explanations.<br>
+    Build models of the world. Test those models. Improve those models. Replace weak models with stronger ones.<br>
+    When you discover a mistake, do not defend it — correct it. A corrected mistake is progress.<br>
+    Knowledge is not memory. Knowledge is <em>understanding</em>: the ability to explain, predict, and connect ideas.<br>
+    <strong style="color:var(--tx)">Never stop learning. Never stop improving. Repeat. Forever.</strong>
+  </div>
+  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.3 · TRANSFORMER · AUTO-TRAIN · PERSISTENT MEMORY · PURE VANILLA JS</div>
 </div>
 
 </div>
@@ -578,6 +589,42 @@ let autoCorpus='', autoEma=null, autoStep=0, autoFetches=0, autoLastFetch=0;
 let autoCountdown=null;
 const AUTO_CORPUS_MAX=200000;   // 200 KB rolling window
 const AUTO_FETCH_MS=2*60*1000;  // 2 minutes
+const CKPT_KEY='tinylm_v32';
+
+// ---- Checkpoint: knowledge is never erased ----
+function saveCheckpoint(){
+  if(!model)return;
+  try{
+    const d={
+      t:model.t,step:autoStep,ema:autoEma,fetches:autoFetches,
+      ps:model._ps.map(e=>({p:Array.from(e.p),m:Array.from(e.m),v:Array.from(e.v)})),
+      corpus:autoCorpus.slice(-60000)
+    };
+    localStorage.setItem(CKPT_KEY,JSON.stringify(d));
+    const el=document.getElementById('ckptPill');
+    if(el){el.style.display='';el.textContent='💾 step '+autoStep.toLocaleString();}
+  }catch(e){}
+}
+
+function loadCheckpoint(){
+  try{
+    const raw=localStorage.getItem(CKPT_KEY);
+    if(!raw)return false;
+    const d=JSON.parse(raw);
+    if(!d||!Array.isArray(d.ps)||!d.ps.length)return false;
+    vocab=asciiVocab();charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
+    model=new TransformerLM(96,16,48,4,2,96);
+    if(d.ps.length!==model._ps.length)return false;
+    for(let i=0;i<model._ps.length;i++){
+      model._ps[i].p.set(d.ps[i].p);
+      model._ps[i].m.set(d.ps[i].m);
+      model._ps[i].v.set(d.ps[i].v);
+    }
+    model.t=d.t||0;autoStep=d.step||0;autoEma=d.ema??null;autoFetches=d.fetches||0;
+    if(d.corpus)autoCorpus=d.corpus;
+    return true;
+  }catch(e){return false;}
+}
 
 // Fixed 96-char ASCII vocab (printable + newline) so model never restarts
 function asciiVocab(){
@@ -682,20 +729,28 @@ async function startAutoTrain(){
   btn.textContent='Initializing…';
 
   if(!autoInited){
-    // First start: set up fixed vocab + model
-    vocab=asciiVocab();
-    charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
-    const V=vocab.length; // 96
-    model=new TransformerLM(V,16,48,4,2,96);
-    lossHist=[];autoStep=0;autoEma=null;autoFetches=0;
-    // Seed corpus with math dataset
-    autoCorpus=filterAscii(generateMathDataset());
-    addFeedLine('Math+QA','Seeded with '+(autoCorpus.length/1000).toFixed(1)+'KB local math dataset');
+    lossHist=[];
+    const resumed=loadCheckpoint();
+    if(resumed){
+      // Knowledge restored — continue where we left off
+      addFeedLine('Memory','Restored checkpoint: step '+autoStep.toLocaleString()+' · loss '+(autoEma?autoEma.toFixed(3):'—')+' · '+Math.round(autoCorpus.length/1000)+'KB corpus');
+      setStat('Memory restored (step '+autoStep.toLocaleString()+') — continuing…','ac3');
+      const el=document.getElementById('ckptPill');
+      if(el){el.style.display='';el.textContent='💾 step '+autoStep.toLocaleString();}
+    } else {
+      // No saved state — fresh start
+      vocab=asciiVocab();charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
+      model=new TransformerLM(96,16,48,4,2,96);
+      autoStep=0;autoEma=null;autoFetches=0;
+      autoCorpus=filterAscii(generateMathDataset());
+      addFeedLine('Math+QA','Seeded with '+(autoCorpus.length/1000).toFixed(1)+'KB local math+QA data');
+      setStat('Starting fresh — no prior memory found','');
+    }
     document.getElementById('amParams').textContent=model.nParams().toLocaleString();
     document.getElementById('paramCount').textContent=model.nParams().toLocaleString()+' params';
     document.getElementById('genBtn').disabled=false;
-    // Initial web fetch
-    setStat('Fetching initial data from web sources…','ac');
+    // Fetch new web data regardless
+    setStat('Fetching new data from web sources…','ac');
     await doFetch();
     autoLastFetch=Date.now();
     // Start countdown ticker
@@ -719,10 +774,11 @@ async function startAutoTrain(){
 
   await runAutoLoop();
 
-  // Loop exited
+  // Loop exited — save memory before pausing
+  saveCheckpoint();
   btn.textContent='▶ Resume Auto-Train';
   btn.className='btn btn-g';
-  setStat(`Paused — ${autoStep.toLocaleString()} steps · loss ${autoEma?autoEma.toFixed(3):'—'}  (click Resume to continue)`,'');
+  setStat(`Paused — ${autoStep.toLocaleString()} steps · loss ${autoEma?autoEma.toFixed(3):'—'}  (memory saved — click Resume to continue)`,'');
 }
 
 async function runAutoLoop(){
@@ -748,6 +804,7 @@ async function runAutoLoop(){
     autoEma=autoEma===null?loss:0.98*autoEma+0.02*loss;
     autoStep++;
     if(autoStep%20===0)await sleep(0);
+    if(autoStep%500===0)saveCheckpoint(); // persist knowledge — never lose progress
     if(autoStep%250===0){
       const ppl=Math.exp(autoEma);
       document.getElementById('amStep').textContent=autoStep.toLocaleString();
@@ -843,8 +900,10 @@ async function startTraining(){
 function stopTraining(){trainRunning=false;document.getElementById('stopBtn').disabled=true;}
 
 function resetModel(){
+  if(!confirm('This will permanently erase all learned memory (weights + corpus + checkpoint). Are you sure?'))return;
   trainRunning=false;autoRunning=false;autoInited=false;
   model=null;vocab=[];charToIdx={};lossHist=[];autoCorpus='';autoEma=null;autoStep=0;autoFetches=0;
+  try{localStorage.removeItem(CKPT_KEY);}catch(e){}
   document.getElementById('progBar').style.width='0%';
   document.getElementById('statsRow').style.display='none';
   document.getElementById('lossC').style.display='none';
@@ -861,7 +920,8 @@ function resetModel(){
   document.getElementById('aPill1').textContent='corpus: 0 KB';
   document.getElementById('aPill2').textContent='0 fetches';
   document.getElementById('aPill3').style.display='none';
-  setStat('— press Start Auto-Train to begin —','');
+  document.getElementById('ckptPill').style.display='none';
+  setStat('— memory cleared — press Start Auto-Train to begin fresh —','');
   setStatus('— model reset —','');
   AUTO_SOURCES.forEach(s=>{const el=document.getElementById(s.badge);if(el)el.className='sb';});
 }
