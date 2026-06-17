@@ -59,17 +59,13 @@ textarea:focus{border-color:var(--ac)}
 #status{font-size:.68rem;color:var(--mu);margin-top:8px;min-height:16px;letter-spacing:1px}
 #status.active{color:var(--ac)}#status.done{color:var(--ac3)}#status.err{color:var(--dn)}
 .pill{display:inline-block;background:var(--sur2);border:1px solid var(--brd);border-radius:3px;padding:2px 8px;font-size:.62rem;color:var(--ac);margin-left:6px}
-/* Auto-train source badges */
 .src-badges{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .sb{display:inline-flex;align-items:center;gap:5px;background:var(--sur2);border:1px solid var(--brd);border-radius:4px;padding:4px 10px;font-size:.62rem;letter-spacing:1px;color:var(--mu);transition:all .3s}
 .sb.ok{border-color:var(--ac3);color:var(--ac3)}
 .sb.err{border-color:var(--dn);color:var(--dn)}
 .sb.local{border-color:var(--ac);color:var(--ac)}
-/* Live feed */
-#dataFeed{background:var(--sur2);border:1px solid var(--brd);border-radius:6px;padding:10px 12px;font-size:.67rem;line-height:1.7;color:var(--tx);max-height:150px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
+#dataFeed{background:var(--sur2);border:1px solid var(--brd);border-radius:6px;padding:10px 12px;font-size:.67rem;line-height:1.7;color:var(--tx);max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}
 #dataFeed.empty{color:var(--mu);font-style:italic}
-.feed-line-src{color:var(--ac2)}
-/* Auto pulsing indicator */
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .pulse{animation:pulse 1.5s infinite}
 @keyframes fadeDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
@@ -88,8 +84,9 @@ textarea:focus{border-color:var(--ac)}
     <span class="badge">Causal Mask</span>
     <span class="badge">LayerNorm</span>
     <span class="badge">Adam + Warmup</span>
-    <span class="badge">Live Data Sources</span>
+    <span class="badge">Live Data</span>
     <span class="badge">Auto-Train</span>
+    <span class="badge">v4.0 Robust</span>
   </div>
 </div>
 
@@ -97,35 +94,34 @@ textarea:focus{border-color:var(--ac)}
 <div class="card">
   <div class="card-title">00 — Auto-Train (Live Continuous)</div>
   <div class="expl">
-    <strong>Read. Observe. Compare. Learn.</strong> Connects to Wikipedia, HackerNews, JokeAPI, AdviceSlip &amp; On-This-Day — no API keys. Fetches every 2 min, trains continuously. <strong>Knowledge is never erased</strong> — weights are saved to your browser automatically and restored on every visit. The model grows smarter over time without resetting.
+    <strong>Read. Observe. Compare. Learn.</strong> Connects to Wikipedia, HackerNews, JokeAPI, AdviceSlip, On-This-Day &amp; UselessFacts — no API keys. Fetches every 2 min, trains continuously on a 96-char fixed vocabulary. <strong>Knowledge is never erased</strong> — binary-encoded weights saved to your browser automatically and restored on every visit. The model grows smarter over time without resetting.
   </div>
-  <!-- Data source badges -->
   <div class="src-badges">
     <span class="sb local" id="sbMath">&#x2205; Math+QA (seed)</span>
     <span class="sb" id="sbWiki">&#x1F310; Wikipedia</span>
     <span class="sb" id="sbHN">&#x1F525; HackerNews</span>
     <span class="sb" id="sbJoke">&#x1F604; JokeAPI</span>
     <span class="sb" id="sbAdvice">&#x1F4A1; AdviceSlip</span>
-    <span class="sb" id="sbOTD">&#x1F4C5; Wiki On-This-Day</span>
+    <span class="sb" id="sbOTD">&#x1F4C5; OnThisDay</span>
+    <span class="sb" id="sbFact">&#x1F9E0; UselessFacts</span>
   </div>
-  <!-- Controls -->
   <div class="btn-row" style="margin-bottom:10px">
     <button class="btn btn-g" id="autoBtn" onclick="toggleAutoTrain()">&#9654; Start Auto-Train</button>
     <span class="pill" id="aPill1">corpus: 0 KB</span>
     <span class="pill" id="aPill2">0 fetches</span>
-    <span class="pill" id="aPill3" style="display:none">next fetch: 2:00</span>
+    <span class="pill" id="aPill3" style="display:none">next: 2:00</span>
     <span class="pill" id="ckptPill" style="display:none;color:var(--ac3)">&#x1F4BE; no checkpoint</span>
   </div>
   <div id="autoStat" style="font-size:.68rem;color:var(--mu);min-height:16px;margin-bottom:10px">— press Start Auto-Train to begin —</div>
-  <!-- Live metrics -->
   <div class="stats" id="autoMetrics" style="display:none;margin-bottom:14px">
     <div class="stat"><span class="sl">Step</span><span class="sv" id="amStep">—</span></div>
     <div class="stat"><span class="sl">Loss</span><span class="sv" id="amLoss">—</span></div>
     <div class="stat"><span class="sl">PPL</span><span class="sv" id="amPpl">—</span></div>
+    <div class="stat"><span class="sl">Step/s</span><span class="sv" id="amSps">—</span></div>
+    <div class="stat"><span class="sl">LR</span><span class="sv" id="amLr">—</span></div>
     <div class="stat"><span class="sl">Corpus</span><span class="sv" id="amCorpus">—</span></div>
     <div class="stat"><span class="sl">Params</span><span class="sv" id="amParams">—</span></div>
   </div>
-  <!-- Live data feed -->
   <div style="font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--mu);margin-bottom:5px">Live Data Feed</div>
   <div id="dataFeed" class="empty">No data fetched yet…</div>
 </div>
@@ -134,7 +130,7 @@ textarea:focus{border-color:var(--ac)}
 <div class="card">
   <div class="card-title">01 — Manual Training Dataset</div>
   <div class="expl">
-    <strong>Manual mode:</strong> Paste your own text or use a preset below, then configure the architecture and click Train. Independent from Auto-Train above.
+    <strong>Manual mode:</strong> Paste your own text or use a preset, configure the architecture, then click Train. Independent from Auto-Train above.
   </div>
   <div class="btn-row" style="margin-bottom:10px">
     <button class="btn btn-s" onclick="loadMathDataset()">&#x2205; Load Math + QA</button>
@@ -162,7 +158,7 @@ textarea:focus{border-color:var(--ac)}
   <div class="btn-row">
     <button class="btn btn-p" id="trainBtn" onclick="startTraining()">&#9654; Train</button>
     <button class="btn btn-d" id="stopBtn" onclick="stopTraining()" disabled>&#9646;&#9646; Stop</button>
-    <button class="btn btn-s" onclick="resetModel()">Reset</button>
+    <button class="btn btn-s" onclick="resetModel()">Reset All</button>
   </div>
   <div class="prog-w"><div class="prog-b" id="progBar"></div></div>
   <div id="status">— load a dataset and train —</div>
@@ -199,11 +195,11 @@ textarea:focus{border-color:var(--ac)}
     <span style="color:var(--ac)">2.</span> <strong style="color:var(--tx)">Multi-Head Causal Self-Attention</strong> — Project to Q,K,V. Scaled dot-product scores. Triangular causal mask. Softmax → weighted V. Concat heads → Wo.<br>
     <span style="color:var(--ac)">3.</span> <strong style="color:var(--tx)">Residual + LayerNorm</strong> — Pre-norm: x = x + block(LN(x)). Full LN backward (not approximated).<br>
     <span style="color:var(--ac)">4.</span> <strong style="color:var(--tx)">Feed-Forward Network</strong> — D → F → D per position with ReLU. Correct backward: dBf = dpre @ Wf1.T.<br>
-    <span style="color:var(--ac)">5.</span> <strong style="color:var(--tx)">Cross-Entropy over all S positions</strong> — S× more gradient signal per forward pass than single-token prediction.<br>
-    <span style="color:var(--ac)">6.</span> <strong style="color:var(--tx)">Grad Clip + Adam</strong> — Global norm ≤1.0; Adam β₁=0.9, β₂=0.999 with bias correction.<br>
-    <span style="color:var(--ac)">7.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp 8% of steps; cosine 3e−3 → 5e−5.<br>
-    <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Auto-Train Sources</strong> — Wikipedia, HackerNews, JokeAPI, AdviceSlip, On-This-Day. All CORS-enabled, no API keys. Fetched every 2 min, appended to a 200KB rolling corpus.<br>
-    <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">Persistent Memory</strong> — Weights + Adam states saved to localStorage every 100 steps, on Stop, and on page refresh/close. Next visit: knowledge restored automatically. Reset only wipes on explicit confirmation.
+    <span style="color:var(--ac)">5.</span> <strong style="color:var(--tx)">Cross-Entropy over all S positions</strong> — S× more gradient signal per forward pass vs single-token prediction.<br>
+    <span style="color:var(--ac)">6.</span> <strong style="color:var(--tx)">Grad Clip + Adam</strong> — Global norm ≤1.0; Adam β₁=0.9, β₂=0.999 with bias correction. NaN/Inf guard on every step.<br>
+    <span style="color:var(--ac)">7.</span> <strong style="color:var(--tx)">LR Warmup + Cosine Decay</strong> — Linear ramp 8% of steps; cyclic cosine 3e−3 → 5e−5 (period 8000).<br>
+    <span style="color:var(--ac)">8.</span> <strong style="color:var(--tx)">Auto-Train Sources</strong> — Wikipedia (3×), HackerNews, JokeAPI, AdviceSlip, OnThisDay, UselessFacts. All CORS-enabled, no API keys. Fetched every 2 min, 500KB rolling corpus.<br>
+    <span style="color:var(--ac)">9.</span> <strong style="color:var(--tx)">Persistent Memory (v4)</strong> — Weights + Adam states binary-encoded (base64 Float32) and saved to localStorage every 200 steps, on Stop, and on page refresh/close. ~2MB storage vs 4MB+ (old JSON). Reset wipes on explicit confirmation.
   </div>
   <div style="background:rgba(57,255,20,.04);border-left:3px solid var(--ac3);border-radius:0 6px 6px 0;padding:10px 14px;font-size:.65rem;line-height:1.9;color:var(--mu);margin-top:12px">
     <strong style="color:var(--ac3);letter-spacing:1px">LEARNING PHILOSOPHY</strong><br>
@@ -214,7 +210,7 @@ textarea:focus{border-color:var(--ac)}
     Knowledge is not memory. Knowledge is <em>understanding</em>: the ability to explain, predict, and connect ideas.<br>
     <strong style="color:var(--tx)">Never stop learning. Never stop improving. Repeat. Forever.</strong>
   </div>
-  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v3.3.1 · TRANSFORMER · AUTO-TRAIN · PERSISTENT MEMORY · PURE VANILLA JS</div>
+  <div style="margin-top:14px;font-size:.62rem;color:var(--brd);letter-spacing:1px;text-align:right">TINYLM v4.0 · ROBUST · 171K PARAMS · S=32 · AUTO-TRAIN · PERSISTENT MEMORY · PURE VANILLA JS</div>
 </div>
 
 </div>
@@ -224,9 +220,30 @@ textarea:focus{border-color:var(--ac)}
 // =====================================================================
 // Matrix utilities  (flat Float32Array, row-major)
 // =====================================================================
-function mm(A,B,M,K,N){const C=new Float32Array(M*N);for(let i=0;i<M;i++)for(let k=0;k<K;k++){const a=A[i*K+k];if(a===0)continue;for(let j=0;j<N;j++)C[i*N+j]+=a*B[k*N+j];}return C;}
-function mmT1(A,B,M,K,N){const C=new Float32Array(K*N);for(let i=0;i<M;i++)for(let k=0;k<K;k++){const a=A[i*K+k];for(let j=0;j<N;j++)C[k*N+j]+=a*B[i*N+j];}return C;}
-function mmT2(A,B,M,N,K){const C=new Float32Array(M*K);for(let i=0;i<M;i++)for(let n=0;n<N;n++){const a=A[i*N+n];for(let k=0;k<K;k++)C[i*K+k]+=a*B[k*N+n];}return C;}
+function mm(A,B,M,K,N){
+  const C=new Float32Array(M*N);
+  for(let i=0;i<M;i++)for(let k=0;k<K;k++){
+    const a=A[i*K+k];if(a===0)continue;
+    for(let j=0;j<N;j++)C[i*N+j]+=a*B[k*N+j];
+  }
+  return C;
+}
+function mmT1(A,B,M,K,N){
+  const C=new Float32Array(K*N);
+  for(let i=0;i<M;i++)for(let k=0;k<K;k++){
+    const a=A[i*K+k];
+    for(let j=0;j<N;j++)C[k*N+j]+=a*B[i*N+j];
+  }
+  return C;
+}
+function mmT2(A,B,M,N,K){
+  const C=new Float32Array(M*K);
+  for(let i=0;i<M;i++)for(let n=0;n<N;n++){
+    const a=A[i*N+n];
+    for(let k=0;k<K;k++)C[i*K+k]+=a*B[k*N+n];
+  }
+  return C;
+}
 
 // =====================================================================
 // LayerNorm  (row-wise over [S, D])
@@ -241,6 +258,7 @@ function lnFwd(X,g,b,S,D){
   }
   return{Y,xn,rs};
 }
+
 function lnBwd(dY,xn,rs,g,S,D){
   const dX=new Float32Array(S*D),dg=new Float32Array(D),db=new Float32Array(D);
   for(let s=0;s<S;s++){
@@ -308,7 +326,10 @@ function attnBwd(dConcat,Q,K,V,allA,Wq,Wk,Wv,A_in,S,D,nh,hd){
 
 // =====================================================================
 // Transformer Language Model
+// v4 config: V=96, S=32, D=96, nh=4, nL=2, F=192 → ~171K params
 // =====================================================================
+const MODEL_CFG=[96,32,96,4,2,192]; // V,S,D,nh,nL,F
+
 class TransformerLM{
   constructor(V,S,D,nh,nL,F){
     this.V=V;this.S=S;this.D=D;this.nh=nh;this.hd=D/nh|0;this.nL=nL;this.F=F;this.t=0;
@@ -394,8 +415,9 @@ class TransformerLM{
       let mx=logits[s*V];for(let v=1;v<V;v++)if(logits[s*V+v]>mx)mx=logits[s*V+v];
       let sm=0;const p=new Float32Array(V);
       for(let v=0;v<V;v++){p[v]=Math.exp(logits[s*V+v]-mx);sm+=p[v];}
+      if(sm===0||!isFinite(sm))sm=1;
       for(let v=0;v<V;v++)p[v]/=sm;
-      loss+=-Math.log(p[targets[s]]+1e-10);
+      loss+=-Math.log(Math.max(p[targets[s]],1e-10));
       for(let v=0;v<V;v++)dL[s*V+v]=(p[v]-(v===targets[s]?1:0))/S;
     }
     return{loss:loss/S,dL};
@@ -438,8 +460,10 @@ class TransformerLM{
   _adam(p,g,m,v,lr,bc1,bc2){
     const eps=1e-8;
     for(let i=0;i<p.length;i++){
-      m[i]=0.9*m[i]+0.1*g[i];v[i]=0.999*v[i]+0.001*g[i]*g[i];
-      p[i]-=lr*(m[i]/bc1)/(Math.sqrt(v[i]/bc2)+eps);
+      m[i]=0.9*m[i]+0.1*g[i];
+      v[i]=0.999*v[i]+0.001*g[i]*g[i];
+      const upd=lr*(m[i]/bc1)/(Math.sqrt(v[i]/bc2)+eps);
+      p[i]-=isFinite(upd)?upd:0;
     }
   }
 
@@ -449,11 +473,13 @@ class TransformerLM{
     const cache=this.forward(tokens);
     cache._tokens=tokens;
     const{loss,dL}=this.ceLoss(cache.logits,targets);
+    if(!isFinite(loss))return NaN;
     const grads=this.backward(cache,dL);
     let gn2=0;
     const allG=[grads.dtokE,grads.dposE,grads.dlnfg,grads.dlnfb,grads.dWout];
     for(const lg of grads.layerGrads)for(const g of Object.values(lg))allG.push(g);
     for(const g of allG)for(let i=0;i<g.length;i++)gn2+=g[i]*g[i];
+    if(!isFinite(gn2))return NaN;
     const sc=Math.sqrt(gn2)>1?1/Math.sqrt(gn2):1;
     for(const g of allG)for(let i=0;i<g.length;i++)g[i]*=sc;
     this.t++;
@@ -483,7 +509,7 @@ class TransformerLM{
       const tokens=w.slice(0,this.S),targets=w.slice(1,this.S+1);
       const cache=this.forward(tokens);
       const{loss}=this.ceLoss(cache.logits,targets);
-      total+=loss;cnt++;
+      if(isFinite(loss)){total+=loss;cnt++;}
     }
     return cnt?total/cnt:0;
   }
@@ -497,13 +523,14 @@ class TransformerLM{
     const logits=cache.logits.slice((S-1)*V,S*V);
     let mx=logits[0];for(let v=1;v<V;v++)if(logits[v]>mx)mx=logits[v];
     const p=new Float32Array(V);let sm=0;
-    for(let v=0;v<V;v++){p[v]=Math.exp((logits[v]-mx)/temp);sm+=p[v];}
+    for(let v=0;v<V;v++){p[v]=Math.exp((logits[v]-mx)/Math.max(temp,0.01));sm+=p[v];}
+    if(sm===0||!isFinite(sm)){p[0]=1;sm=1;}
     for(let v=0;v<V;v++)p[v]/=sm;
     if(topK>0&&topK<V){
       const idx=Array.from({length:V},(_,i)=>i).sort((a,b)=>p[b]-p[a]);
       const keep=new Set(idx.slice(0,topK));
       let s2=0;for(let v=0;v<V;v++){if(!keep.has(v))p[v]=0;else s2+=p[v];}
-      for(let v=0;v<V;v++)p[v]/=s2;
+      if(s2>0)for(let v=0;v<V;v++)p[v]/=s2;
     }
     if(topP<0.999){
       const idx=Array.from({length:V},(_,i)=>i).filter(i=>p[i]>0).sort((a,b)=>p[b]-p[a]);
@@ -511,7 +538,7 @@ class TransformerLM{
       for(let i=0;i<idx.length;i++){cum+=p[idx[i]];if(cum>=topP){cut=i+1;break;}}
       const keep=new Set(idx.slice(0,cut));
       let s2=0;for(let v=0;v<V;v++){if(!keep.has(v))p[v]=0;else s2+=p[v];}
-      for(let v=0;v<V;v++)p[v]/=s2;
+      if(s2>0)for(let v=0;v<V;v++)p[v]/=s2;
     }
     let r=Math.random(),cum=0;
     for(let v=0;v<V;v++){cum+=p[v];if(r<=cum)return v;}
@@ -542,7 +569,7 @@ function generateMathDataset(){
   for(let a=0;a<=20;a++)t+=`${a}^2=${a*a}\n`;
   for(let a=0;a<=20;a++)for(let b=0;b<=20;b++)t+=`Q:${a}+${b}? A:${a+b}\n`;
   for(let a=0;a<=12;a++)for(let b=0;b<=12;b++)t+=`Q:${a}*${b}? A:${a*b}\n`;
-  const qa=['Q: capital of France? A: Paris','Q: capital of India? A: New Delhi','Q: capital of Japan? A: Tokyo','Q: capital of Germany? A: Berlin','Q: capital of USA? A: Washington','Q: capital of UK? A: London','Q: 2+2? A: 4','Q: 3*3? A: 9','Q: 10-4? A: 6','Q: 100/10? A: 10','Q: 7*8? A: 56','Q: 12*12? A: 144','Q: speed of light? A: 300000 km/s','Q: pi? A: 3.14159','Q: sqrt 4? A: 2','Q: sqrt 9? A: 3','Q: sqrt 16? A: 4','Q: sqrt 25? A: 5','Q: days in week? A: 7','Q: months in year? A: 12','Q: hours in day? A: 24','Q: seconds in minute? A: 60','Q: minutes in hour? A: 60','Q: planets in solar system? A: 8','Q: hydrogen atomic number? A: 1','Q: water formula? A: H2O','Q: CO2 formula? A: CO2'];
+  const qa=['Q: capital of France? A: Paris','Q: capital of India? A: New Delhi','Q: capital of Japan? A: Tokyo','Q: capital of Germany? A: Berlin','Q: capital of USA? A: Washington','Q: capital of UK? A: London','Q: 2+2? A: 4','Q: 3*3? A: 9','Q: 10-4? A: 6','Q: 100/10? A: 10','Q: 7*8? A: 56','Q: 12*12? A: 144','Q: speed of light? A: 300000 km/s','Q: pi? A: 3.14159','Q: sqrt 4? A: 2','Q: sqrt 9? A: 3','Q: sqrt 16? A: 4','Q: sqrt 25? A: 5','Q: days in week? A: 7','Q: months in year? A: 12','Q: hours in day? A: 24','Q: seconds in minute? A: 60','Q: minutes in hour? A: 60','Q: planets in solar system? A: 8','Q: hydrogen atomic number? A: 1','Q: water formula? A: H2O','Q: CO2 formula? A: CO2','Q: humans on earth? A: 8 billion','Q: closest star? A: Proxima Centauri','Q: speed of sound? A: 343 m/s','Q: boiling point water? A: 100 C'];
   for(let i=0;i<5;i++)t+=qa.join('\n')+'\n';
   return t;
 }
@@ -582,28 +609,54 @@ With this regard their currents turn awry,
 And lose the name of action.`;
 
 // =====================================================================
-// AUTO-TRAIN  —  live continuous training from free web sources
+// Checkpoint  —  binary base64 encoding, ~2MB vs ~4MB old JSON
 // =====================================================================
-let autoRunning=false, autoInited=false;
-let autoCorpus='', autoEma=null, autoStep=0, autoFetches=0, autoLastFetch=0;
-let autoCountdown=null;
-const AUTO_CORPUS_MAX=200000;   // 200 KB rolling window
-const AUTO_FETCH_MS=2*60*1000;  // 2 minutes
-const CKPT_KEY='tinylm_v32';
+const CKPT_KEY='tinylm_v40';
+const AUTO_CORPUS_MAX=500000;  // 500KB rolling corpus
+const AUTO_FETCH_MS=2*60*1000;
 
-// ---- Checkpoint: knowledge is never erased ----
+function encodeF32(arr){
+  const bytes=new Uint8Array(arr.buffer,arr.byteOffset,arr.byteLength);
+  const chunks=[];
+  const SZ=0x8000;
+  for(let i=0;i<bytes.length;i+=SZ)chunks.push(String.fromCharCode.apply(null,bytes.subarray(i,i+SZ)));
+  return btoa(chunks.join(''));
+}
+
+function decodeF32(b64,n){
+  const s=atob(b64);
+  const bytes=new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++)bytes[i]=s.charCodeAt(i);
+  const f=new Float32Array(bytes.buffer);
+  if(f.length===n)return f;
+  const out=new Float32Array(n);
+  out.set(f.subarray(0,Math.min(f.length,n)));
+  return out;
+}
+
 function saveCheckpoint(){
   if(!model)return;
   try{
-    const d={
-      t:model.t,step:autoStep,ema:autoEma,fetches:autoFetches,
-      ps:model._ps.map(e=>({p:Array.from(e.p),m:Array.from(e.m),v:Array.from(e.v)})),
-      corpus:autoCorpus.slice(-60000)
+    const data={
+      v:4,t:model.t,step:autoStep,ema:autoEma,fetches:autoFetches,
+      corpus:autoCorpus.slice(-80000),
+      ps:model._ps.map(e=>({p:encodeF32(e.p),m:encodeF32(e.m),v:encodeF32(e.v)}))
     };
-    localStorage.setItem(CKPT_KEY,JSON.stringify(d));
+    localStorage.setItem(CKPT_KEY,JSON.stringify(data));
     const el=document.getElementById('ckptPill');
-    if(el){el.style.display='';el.textContent='💾 step '+autoStep.toLocaleString();}
-  }catch(e){console.error('Checkpoint save failed:',e);}
+    if(el){el.style.display='';el.textContent='\u{1F4BE} step '+autoStep.toLocaleString();}
+  }catch(e){
+    console.error('Checkpoint save failed (full):',e);
+    // Fallback: save only weights (no Adam states) to stay within quota
+    try{
+      const data={
+        v:4,t:model.t,step:autoStep,ema:autoEma,fetches:autoFetches,
+        corpus:autoCorpus.slice(-20000),
+        ps:model._ps.map(e=>({p:encodeF32(e.p)}))
+      };
+      localStorage.setItem(CKPT_KEY,JSON.stringify(data));
+    }catch(e2){console.error('Checkpoint save (reduced) failed:',e2);}
+  }
 }
 
 function loadCheckpoint(){
@@ -613,20 +666,27 @@ function loadCheckpoint(){
     const d=JSON.parse(raw);
     if(!d||!Array.isArray(d.ps)||!d.ps.length)return false;
     vocab=asciiVocab();charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
-    model=new TransformerLM(96,16,48,4,2,96);
-    if(d.ps.length!==model._ps.length)return false;
+    model=new TransformerLM(...MODEL_CFG);
+    if(d.ps.length!==model._ps.length){console.warn('Checkpoint param count mismatch');return false;}
     for(let i=0;i<model._ps.length;i++){
-      model._ps[i].p.set(d.ps[i].p);
-      model._ps[i].m.set(d.ps[i].m);
-      model._ps[i].v.set(d.ps[i].v);
+      const ep=d.ps[i];
+      if(typeof ep.p==='string'){
+        model._ps[i].p.set(decodeF32(ep.p,model._ps[i].p.length));
+        if(ep.m)model._ps[i].m.set(decodeF32(ep.m,model._ps[i].m.length));
+        if(ep.v)model._ps[i].v.set(decodeF32(ep.v,model._ps[i].v.length));
+      }else if(Array.isArray(ep.p)){
+        model._ps[i].p.set(ep.p.slice(0,model._ps[i].p.length));
+        if(ep.m)model._ps[i].m.set(ep.m.slice(0,model._ps[i].m.length));
+        if(ep.v)model._ps[i].v.set(ep.v.slice(0,model._ps[i].v.length));
+      }
     }
     model.t=d.t||0;autoStep=d.step||0;autoEma=d.ema??null;autoFetches=d.fetches||0;
     if(d.corpus)autoCorpus=d.corpus;
     return true;
-  }catch(e){return false;}
+  }catch(e){console.error('Checkpoint load failed:',e);return false;}
 }
 
-// Fixed 96-char ASCII vocab (printable + newline) so model never restarts
+// Fixed 96-char ASCII vocab — never changes so model never needs to restart
 function asciiVocab(){
   const v=['\n'];
   for(let i=32;i<=126;i++)v.push(String.fromCharCode(i));
@@ -639,7 +699,18 @@ function filterAscii(text){
   return out.join('');
 }
 
-// ---- Data source fetchers (all CORS-enabled, no API key) ----
+// =====================================================================
+// AUTO-TRAIN  state
+// =====================================================================
+let autoRunning=false,autoInited=false;
+let autoCorpus='',autoEma=null,autoStep=0,autoFetches=0,autoLastFetch=0;
+let autoCountdown=null;
+let _spsT0=Date.now(),_spsS0=0;
+let _nanStreak=0;
+
+// =====================================================================
+// Data source fetchers  (all CORS-enabled, no API key)
+// =====================================================================
 async function _fetchWiki(){
   const r=await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/Special:Random');
   const d=await r.json();
@@ -649,7 +720,7 @@ async function _fetchWiki(){
 async function _fetchHN(){
   const r=await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
   const ids=await r.json();
-  const items=await Promise.all(ids.slice(0,6).map(id=>
+  const items=await Promise.all(ids.slice(0,8).map(id=>
     fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`).then(r=>r.json()).catch(()=>null)
   ));
   return items.filter(Boolean).map(s=>(s.title||'')+'\n').join('')+'\n';
@@ -672,15 +743,22 @@ async function _fetchOTD(){
   const d=String(now.getDate()).padStart(2,'0');
   const r=await fetch(`https://en.wikipedia.org/api/rest_v1/feed/onthisday/events/${m}/${d}`);
   const data=await r.json();
-  return (data.events||[]).slice(0,4).map(e=>`${e.year}: ${e.text}\n`).join('')+'\n';
+  return (data.events||[]).slice(0,5).map(e=>`${e.year}: ${e.text}\n`).join('')+'\n';
+}
+
+async function _fetchFact(){
+  const r=await fetch('https://uselessfacts.jsph.pl/api/v2/facts/random?language=en');
+  const d=await r.json();
+  return 'Fact: '+(d.text||'')+'\n\n';
 }
 
 const AUTO_SOURCES=[
-  {name:'Wikipedia',  badge:'sbWiki',  fn:()=>Promise.all([_fetchWiki(),_fetchWiki()]).then(v=>v.join(''))},
-  {name:'HackerNews', badge:'sbHN',    fn:_fetchHN},
-  {name:'JokeAPI',    badge:'sbJoke',  fn:_fetchJoke},
-  {name:'AdviceSlip', badge:'sbAdvice',fn:_fetchAdvice},
-  {name:'OnThisDay',  badge:'sbOTD',   fn:_fetchOTD},
+  {name:'Wikipedia', badge:'sbWiki', fn:()=>Promise.all([_fetchWiki(),_fetchWiki(),_fetchWiki()]).then(v=>v.join(''))},
+  {name:'HackerNews',badge:'sbHN',   fn:_fetchHN},
+  {name:'JokeAPI',   badge:'sbJoke', fn:_fetchJoke},
+  {name:'AdviceSlip',badge:'sbAdvice',fn:_fetchAdvice},
+  {name:'OnThisDay', badge:'sbOTD',  fn:_fetchOTD},
+  {name:'Facts',     badge:'sbFact', fn:_fetchFact},
 ];
 
 async function doFetch(){
@@ -693,9 +771,9 @@ async function doFetch(){
       const filtered=filterAscii(results[i].value);
       autoCorpus=(autoCorpus+filtered).slice(-AUTO_CORPUS_MAX);
       added+=filtered.length;
-      el.className='sb ok';
+      if(el)el.className='sb ok';
       addFeedLine(src.name,filtered.slice(0,160).replace(/\n/g,' '));
-    } else {
+    }else{
       if(el)el.className='sb err';
     }
   }
@@ -703,7 +781,7 @@ async function doFetch(){
   autoLastFetch=Date.now();
   document.getElementById('aPill2').textContent=`${autoFetches} fetches`;
   document.getElementById('aPill1').textContent=`corpus: ${(autoCorpus.length/1000).toFixed(1)}KB`;
-  if(document.getElementById('amCorpus'))document.getElementById('amCorpus').textContent=(autoCorpus.length/1000).toFixed(0)+'K';
+  const ac=document.getElementById('amCorpus');if(ac)ac.textContent=(autoCorpus.length/1000).toFixed(0)+'K';
   return added;
 }
 
@@ -711,22 +789,30 @@ function addFeedLine(src,text){
   const feed=document.getElementById('dataFeed');
   if(feed.classList.contains('empty')){feed.classList.remove('empty');feed.textContent='';}
   const time=new Date().toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  feed.textContent=`[${time}] ${src}: ${text}\n`+feed.textContent;
-  if(feed.textContent.length>4000)feed.textContent=feed.textContent.slice(0,4000);
+  const prefix=src==='Sample'?'[\u{1F916}]':'['+time+']';
+  const col=src==='Sample'?'color:var(--ac3);':'color:var(--ac2);';
+  feed.innerHTML=`<span style="${col}">${prefix} ${src}:</span> ${text.replace(/</g,'&lt;')}\n`+feed.innerHTML;
+  if(feed.innerHTML.length>8000)feed.innerHTML=feed.innerHTML.slice(0,8000);
+}
+
+function autoGenSample(){
+  if(!model||!vocab.length)return;
+  const seeds=['Q: ','The ','In ','A ','Science '];
+  const seed=seeds[autoStep%seeds.length];
+  try{
+    const out=model.generate(seed,charToIdx,vocab,80,0.8,0,0.92);
+    addFeedLine('Sample',out.replace(/\n/g,' '));
+  }catch(e){}
 }
 
 async function toggleAutoTrain(){
-  if(autoRunning){
-    autoRunning=false;
-    return;
-  }
+  if(autoRunning){autoRunning=false;return;}
   await startAutoTrain();
 }
 
 async function startAutoTrain(){
   const btn=document.getElementById('autoBtn');
-  btn.disabled=true;
-  btn.textContent='Initializing…';
+  btn.disabled=true;btn.textContent='Initializing…';
 
   if(!autoInited){
     lossHist=[];
@@ -735,10 +821,10 @@ async function startAutoTrain(){
       addFeedLine('Memory','Restored checkpoint: step '+autoStep.toLocaleString()+' · loss '+(autoEma?autoEma.toFixed(3):'—')+' · '+Math.round(autoCorpus.length/1000)+'KB corpus');
       setStat('Memory restored (step '+autoStep.toLocaleString()+') — continuing…','ac3');
       const el=document.getElementById('ckptPill');
-      if(el){el.style.display='';el.textContent='💾 step '+autoStep.toLocaleString();}
-    } else {
+      if(el){el.style.display='';el.textContent='\u{1F4BE} step '+autoStep.toLocaleString();}
+    }else{
       vocab=asciiVocab();charToIdx={};vocab.forEach((c,i)=>charToIdx[c]=i);
-      model=new TransformerLM(96,16,48,4,2,96);
+      model=new TransformerLM(...MODEL_CFG);
       autoStep=0;autoEma=null;autoFetches=0;
       autoCorpus=filterAscii(generateMathDataset());
       addFeedLine('Math+QA','Seeded with '+(autoCorpus.length/1000).toFixed(1)+'KB local math+QA data');
@@ -750,6 +836,7 @@ async function startAutoTrain(){
     setStat('Fetching new data from web sources…','ac');
     await doFetch();
     autoLastFetch=Date.now();
+    _spsT0=Date.now();_spsS0=autoStep;
     if(autoCountdown)clearInterval(autoCountdown);
     autoCountdown=setInterval(()=>{
       if(!autoRunning)return;
@@ -772,14 +859,15 @@ async function startAutoTrain(){
   saveCheckpoint();
   btn.textContent='▶ Resume Auto-Train';
   btn.className='btn btn-g';
-  setStat(`Paused — ${autoStep.toLocaleString()} steps · loss ${autoEma?autoEma.toFixed(3):'—'}  (memory saved — click Resume to continue)`,'');
+  setStat(`Paused — ${autoStep.toLocaleString()} steps · loss ${autoEma?autoEma.toFixed(3):'—'}  (memory saved)`,'' );
 }
 
 async function runAutoLoop(){
-  const maxLR=3e-3,minLR=5e-5,warmup=400,S=model.S;
+  const maxLR=3e-3,minLR=5e-5,warmup=500,S=model.S;
+  _nanStreak=0;
   while(autoRunning){
     if(Date.now()-autoLastFetch>=AUTO_FETCH_MS){
-      setStat('Fetching new data from web…','ac');
+      setStat('Fetching new data…','ac');
       await doFetch();
     }
     const corpLen=autoCorpus.length;
@@ -791,18 +879,46 @@ async function runAutoLoop(){
     const lr=autoStep<warmup
       ?maxLR*(autoStep+1)/warmup
       :minLR+0.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(cy%8000)/8000));
-    const loss=model.step(w,lr);
+
+    let loss;
+    try{loss=model.step(w,lr);}
+    catch(e){console.error('step error:',e);await sleep(50);continue;}
+
+    if(!isFinite(loss)){
+      _nanStreak++;
+      if(_nanStreak>=10){
+        setStat('Warning: persistent NaN loss — corpus may contain unusual patterns','ac2');
+        _nanStreak=0;
+      }
+      continue;
+    }
+    _nanStreak=0;
+
     autoEma=autoEma===null?loss:0.98*autoEma+0.02*loss;
     autoStep++;
-    if(autoStep%20===0)await sleep(0);
-    if(autoStep%100===0)saveCheckpoint();
+
+    if(autoStep%10===0)await sleep(0);
+    if(autoStep%200===0)saveCheckpoint();
+    if(autoStep%500===0){
+      // sample the model to show learning progress
+      autoGenSample();
+    }
     if(autoStep%250===0){
       const ppl=Math.exp(autoEma);
+      // steps per second
+      const elapsed=(Date.now()-_spsT0)/1000;
+      const sps=elapsed>0?((autoStep-_spsS0)/elapsed).toFixed(1):'—';
+      if(elapsed>30){_spsT0=Date.now();_spsS0=autoStep;}
+
       document.getElementById('amStep').textContent=autoStep.toLocaleString();
       document.getElementById('amLoss').textContent=autoEma.toFixed(3);
       document.getElementById('amPpl').textContent=ppl.toFixed(1);
+      document.getElementById('amSps').textContent=sps;
+      document.getElementById('amLr').textContent=lr.toExponential(1);
       document.getElementById('amCorpus').textContent=(autoCorpus.length/1000).toFixed(0)+'K';
-      setStat(`step ${autoStep.toLocaleString()} · loss ${autoEma.toFixed(3)} · ppl ${ppl.toFixed(1)} · ${(autoCorpus.length/1000).toFixed(1)}KB corpus`,'ac');
+      setStat(`step ${autoStep.toLocaleString()} · loss ${autoEma.toFixed(3)} · ppl ${ppl.toFixed(1)} · ${sps} sps`,'ac');
+      // cap lossHist at 500 entries to prevent unbounded memory growth
+      if(lossHist.length>=500)lossHist.splice(0,100);
       lossHist.push({step:autoStep,tl:autoEma,vl:autoEma,lr});
       document.getElementById('statsRow').style.display='flex';
       document.getElementById('lossC').style.display='block';
@@ -822,7 +938,7 @@ function setStat(msg,col){
 }
 
 // =====================================================================
-// Global state (shared between auto and manual)
+// Global state
 // =====================================================================
 let model=null,vocab=[],charToIdx={},lossHist=[],trainRunning=false;
 
@@ -857,16 +973,20 @@ async function startTraining(){
   document.getElementById('lossC').style.display='none';
   document.getElementById('progBar').style.width='0%';
   const maxLR=3e-3,minLR=5e-5,warmup=Math.max(50,maxSteps*.08|0);
-  let ema=null;
+  let ema=null,nanCount=0;
   for(let step=0;step<maxSteps&&trainRunning;step++){
     const lr=step<warmup?maxLR*(step+1)/warmup:minLR+.5*(maxLR-minLR)*(1+Math.cos(Math.PI*(step-warmup)/(maxSteps-warmup)));
     const w=trainW[Math.floor(Math.random()*trainW.length)];
-    const loss=model.step(w,lr);
+    let loss;
+    try{loss=model.step(w,lr);}catch(e){continue;}
+    if(!isFinite(loss)){nanCount++;if(nanCount>20)break;continue;}
+    nanCount=0;
     ema=ema===null?loss:0.98*ema+0.02*loss;
-    if(step%20===0)await sleep(0);
+    if(step%10===0)await sleep(0);
     if(step%100===0)document.getElementById('progBar').style.width=((step+1)/maxSteps*100)+'%';
     if(step%300===0||step===maxSteps-1){
       const vl=model.valLoss((valW.length?valW:trainW).slice(0,Math.min(200,valW.length||trainW.length)));
+      if(lossHist.length>=500)lossHist.splice(0,100);
       lossHist.push({step,tl:ema,vl,lr});drawChart();
       setStatus(`step ${step.toLocaleString()}/${maxSteps.toLocaleString()} · train ${ema.toFixed(3)} · val ${vl.toFixed(3)}`,'active');
     }
@@ -893,7 +1013,7 @@ function stopTraining(){trainRunning=false;document.getElementById('stopBtn').di
 function resetModel(){
   if(!confirm('This will permanently erase all learned memory (weights + corpus + checkpoint). Are you sure?'))return;
   trainRunning=false;autoRunning=false;autoInited=false;
-  model=null;vocab=[];charToIdx={};lossHist=[];autoCorpus='';autoEma=null;autoStep=0;autoFetches=0;
+  model=null;vocab=[];charToIdx={};lossHist=[];autoCorpus='';autoEma=null;autoStep=0;autoFetches=0;_nanStreak=0;
   try{localStorage.removeItem(CKPT_KEY);}catch(e){}
   document.getElementById('progBar').style.width='0%';
   document.getElementById('statsRow').style.display='none';
@@ -988,7 +1108,7 @@ function updateUI(){
   const chars=[...new Set(txt.split(''))].sort();
   document.getElementById('charCount').textContent=txt.length.toLocaleString();
   document.getElementById('vocabCount').textContent=chars.length;
-  document.getElementById('vocabChips').innerHTML=chars.slice(0,60).map(c=>`<span class="chip">${c===' '?'·':c==='\n'?'↵':c}</span>`).join('');
+  document.getElementById('vocabChips').innerHTML=chars.slice(0,60).map(c=>`<span class="chip">${c===' '?'·':c==='\n'?'↵':c.replace(/</g,'&lt;')}</span>`).join('');
   updateSliders();
 }
 
@@ -1019,9 +1139,9 @@ function updateSliders(){
 function setStatus(msg,type){const el=document.getElementById('status');el.textContent=msg;el.className=type;}
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 
-// Save on page refresh / close — never lose progress
-window.addEventListener('pagehide', ()=>saveCheckpoint());
-window.addEventListener('beforeunload', ()=>saveCheckpoint());
+// Save on page close/refresh — never lose progress
+window.addEventListener('pagehide',()=>saveCheckpoint());
+window.addEventListener('beforeunload',()=>saveCheckpoint());
 </script>
 </body>
 </html>
