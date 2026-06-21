@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pharmacy-green: #16a34a;
+  --pharmacy-teal: #0d9488;
+  --emergency-red: #dc2626;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  .btn-secondary {
+    @apply bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-4;
+  }
+  .input {
+    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500;
+  }
+}
