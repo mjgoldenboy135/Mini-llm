@@ -1,8 +1,8 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum, Count, Avg
+from rest_framework.permissions import BasePermission, IsAuthenticated
+from django.db.models import Sum
 from django.utils import timezone
 from datetime import timedelta
 from .models import SalesSummary, InventoryAlert
@@ -11,10 +11,12 @@ from products.models import Product
 from accounts.models import User
 
 
-class IsAdmin(IsAuthenticated.__class__):
+class IsAdmin(BasePermission):
     def has_permission(self, request, view):
-        return super().has_permission(request, view) and request.user.role in (
-            User.Role.ADMIN, User.Role.PHARMACIST
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.role in (User.Role.ADMIN, User.Role.PHARMACIST)
         )
 
 
