@@ -27,3 +27,4 @@ httpx==0.27.0
 python-slugify==8.0.4
 uuid==1.30
 sentry-sdk==2.13.0
+dj-database-url==2.2.0
