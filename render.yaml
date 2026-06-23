@@ -1,14 +1,11 @@
 ###############################################################
 # Safe Pharmacy — Render Blueprint
 # Deploy with: connect repo on render.com → "New Blueprint"
+#
+# NOTE: Free tier allows only 1 PostgreSQL database per account.
+# Supply DATABASE_URL manually from your existing Render DB or
+# a free external DB (Supabase / Neon / Railway).
 ###############################################################
-
-databases:
-  - name: safe-pharmacy-db
-    databaseName: safe_pharmacy
-    user: pharmacy
-    region: oregon
-    plan: free          # upgrade to starter/standard for production
 
 services:
   # ── Redis ──────────────────────────────────────────────────
@@ -17,7 +14,7 @@ services:
     region: oregon
     plan: free
     maxmemoryPolicy: allkeys-lru
-    ipAllowList: []     # only allow internal access
+    ipAllowList: []
 
   # ── Django API (ASGI via Daphne) ───────────────────────────
   - type: web
@@ -36,21 +33,18 @@ services:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: safe-pharmacy-db
-          property: connectionString
+        sync: false           # paste your PostgreSQL connection string here
       - key: REDIS_URL
         fromService:
           name: safe-pharmacy-redis
           type: redis
           property: connectionString
       - key: ALLOWED_HOSTS
-        value: "*"                       # tighten to .onrender.com after first deploy
+        value: "*"
       - key: CORS_ALLOWED_ORIGINS
-        value: ""                        # set to https://your-frontend.onrender.com
+        value: ""
       - key: PYTHON_VERSION
         value: "3.12.0"
-      # Optional — fill in Render dashboard after deploy
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
@@ -67,7 +61,6 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
-      # Superuser created on first build
       - key: DJANGO_SUPERUSER_MOBILE
         sync: false
       - key: DJANGO_SUPERUSER_PASSWORD
@@ -86,9 +79,10 @@ services:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.production
       - key: DATABASE_URL
-        fromDatabase:
-          name: safe-pharmacy-db
-          property: connectionString
+        fromService:
+          name: safe-pharmacy-api
+          type: web
+          envVarKey: DATABASE_URL
       - key: REDIS_URL
         fromService:
           name: safe-pharmacy-redis
@@ -99,16 +93,6 @@ services:
           name: safe-pharmacy-api
           type: web
           envVarKey: DJANGO_SECRET_KEY
-      - key: TWILIO_ACCOUNT_SID
-        fromService:
-          name: safe-pharmacy-api
-          type: web
-          envVarKey: TWILIO_ACCOUNT_SID
-      - key: TWILIO_AUTH_TOKEN
-        fromService:
-          name: safe-pharmacy-api
-          type: web
-          envVarKey: TWILIO_AUTH_TOKEN
       - key: PYTHON_VERSION
         value: "3.12.0"
 
@@ -125,6 +109,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
-      # Set to your deployed API URL: https://safe-pharmacy-api.onrender.com/api
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        sync: false           # set to https://safe-pharmacy-api.onrender.com/api
