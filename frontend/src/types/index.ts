@@ -85,6 +85,7 @@ export interface AISessionResponse {
   }>;
   title?: string;
   message?: string;
+  advice?: string;
   disclaimer?: string;
   recommended_products?: Product[];
 }
